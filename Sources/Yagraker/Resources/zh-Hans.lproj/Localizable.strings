@@ -1,0 +1,181 @@
+/* Menu bar */
+"menu.checkSelected" = "检查选中文本";
+"menu.quickTranslate" = "翻译";
+"menu.deepRead" = "精读";
+"menu.translateSelection" = "翻译选中文本";
+"menu.openRecent" = "打开最近记录";
+"menu.noRecent" = "暂无最近检查";
+"menu.clearHistory" = "清除历史记录";
+"menu.settings" = "设置";
+"menu.quit" = "退出 Yagraker";
+"menu.edit" = "编辑";
+"menu.edit.undo" = "撤销";
+"menu.edit.redo" = "重做";
+"menu.edit.cut" = "剪切";
+"menu.edit.copy" = "复制";
+"menu.edit.paste" = "粘贴";
+"menu.edit.pasteMatchStyle" = "粘贴并匹配样式";
+"menu.edit.delete" = "删除";
+"menu.edit.selectAll" = "全选";
+
+/* Shortcuts */
+"shortcut.checkGrammar.title" = "检查选中文本";
+"shortcut.checkGrammar.detail" = "读取当前选区并立即检查";
+"shortcut.translate.title" = "翻译选中文本";
+"shortcut.translate.detail" = "在翻译面板中立即翻译选中的文本";
+"shortcut.openTranslation.title" = "打开翻译";
+"shortcut.openTranslation.detail" = "打开翻译面板，不立即执行";
+"shortcut.openDeepRead.title" = "打开精读";
+"shortcut.openDeepRead.detail" = "打开精读面板，不立即执行";
+
+/* Settings */
+"settings.title" = "设置";
+"settings.tab.general" = "通用";
+"settings.tab.provider" = "AI 服务";
+"settings.tab.shortcuts" = "快捷键";
+"settings.tab.about" = "关于";
+"settings.general.language" = "语言";
+"settings.language.system" = "跟随系统";
+"settings.general.updates" = "更新";
+"settings.general.autoCheck" = "自动检查更新";
+"settings.general.checkNow" = "立即检查";
+"settings.general.installUpdate" = "安装更新…";
+"settings.general.permissions" = "权限";
+"settings.permissions.required" = "必需 — Yagraker 需要此权限来读取选中文本";
+"settings.permissions.grant" = "前往授权";
+"settings.permissions.granted" = "辅助功能权限已授予";
+"settings.permissions.help" = "打开系统设置 → 隐私与安全性 → 辅助功能 → 启用 Yagraker。授权后可能需要重启应用。";
+"settings.provider.provider" = "服务商";
+"settings.provider.hint" = "为翻译、精读和语法检查分别选择服务商和模型。";
+"settings.provider.routing" = "任务路由";
+"settings.provider.credentials" = "服务商凭据";
+"settings.provider.translationRouteHint" = "选择用于翻译的服务商和模型。";
+"settings.provider.deepReadRouteHint" = "选择用于精读的通用服务商和模型。";
+"settings.provider.grammarRouteHint" = "选择用于语法检查的通用服务商和模型。";
+"settings.provider.editProvider" = "编辑服务商";
+"settings.provider.credentialsHint" = "每个服务商的 API Key 和端点配置相互独立保存。";
+"settings.provider.connection" = "连接配置";
+"settings.provider.endpoint" = "API 端点";
+"settings.provider.cluster" = "集群";
+"settings.provider.baseURL" = "Base URL";
+"settings.provider.baseURLHelp" = "端点须支持 POST {base}/chat/completions。请使用 HTTPS；明文 HTTP 仅限回环或私有网络端点。";
+"settings.provider.apiKey" = "API Key";
+"settings.provider.model" = "模型";
+"settings.provider.translationModel" = "翻译模型";
+"settings.provider.deepReadModel" = "精读模型";
+"settings.provider.grammarModel" = "语法检查模型";
+"settings.provider.modelDefault" = "默认：%@";
+"settings.provider.modelRequired" = "必填 — 你的端点所接受的模型 ID";
+"settings.provider.qwenTranslationModelHelp" = "支持：qwen-mt-flash（推荐）、qwen-mt-plus、qwen-mt-lite，以及 qwen-mt-turbo（旧版）。";
+"settings.provider.qwenModelsMenu" = "选择 Qwen-MT 模型";
+"settings.provider.grammarModelHelp" = "请使用通用模型；Qwen-MT 系列仅支持翻译。";
+"settings.provider.qwenBaseURLHelp" = "请填写阿里云百炼 API Key 对话框中的 API Host，且必须提供 /compatible-mode/v1。";
+"settings.provider.refreshModels" = "刷新官方模型列表";
+"settings.provider.officialModels" = "官方模型";
+"settings.provider.loadingModels" = "正在加载模型…";
+"settings.provider.noModels" = "官方列表中没有文本生成模型。";
+"settings.provider.modelsNeedKey" = "请先添加 API Key，再刷新模型列表。";
+"settings.provider.refreshModelsHint" = "点击刷新以加载官方模型列表。";
+"settings.provider.validateTask" = "验证任务";
+"settings.provider.validateTaskButton" = "验证%@";
+"settings.provider.task.translation" = "翻译";
+"settings.provider.task.deepRead" = "精读";
+"settings.provider.task.grammar" = "语法检查";
+"settings.provider.validate" = "验证";
+"settings.provider.validating" = "验证中…";
+"settings.provider.save" = "保存";
+"settings.shortcuts.hint" = "快捷键在任意应用中生效。点击输入框后按下新的组合键；清空输入框即可不设置快捷键。";
+"settings.shortcuts.clear" = "清除快捷键";
+"settings.shortcuts.record" = "录入快捷键";
+
+/* Providers */
+"provider.help.gemini" = "前往 Google AI Studio 获取密钥";
+"provider.help.qwen" = "前往阿里云百炼获取密钥";
+"provider.help.deepseek" = "前往 DeepSeek 开放平台获取密钥";
+"provider.help.mimo" = "前往小米 MiMo 平台获取密钥";
+"provider.help.custom" = "任意 OpenAI 兼容端点 — OpenAI、Moonshot Kimi、MiniMax、豆包等。";
+"provider.connected" = "已成功连接到 %@。";
+"cluster.cn" = "中国";
+"cluster.sg" = "新加坡";
+"cluster.eu" = "欧洲";
+
+/* Tools */
+"tool.grammar" = "语法";
+"tool.translation" = "翻译";
+"tool.deepRead" = "精读";
+
+/* Popup */
+"popup.textToProcess" = "待处理文本";
+"popup.original" = "原文";
+"popup.actionGrammar" = "检查";
+"popup.actionTranslate" = "翻译";
+"popup.actionDeepRead" = "精读";
+"popup.accept" = "采纳";
+"popup.retry" = "重试";
+"popup.regenerate" = "重新生成";
+"popup.hintTranslate" = "↵ 翻译  ⇧↵ 换行";
+"popup.hintGrammar" = "↵ 检查  ⇧↵ 换行";
+"popup.hintDeepRead" = "↵ 精读  ⇧↵ 换行";
+"popup.hintSubmit" = "↵ 提交  ⇧↵ 换行";
+"popup.copied" = "已复制";
+"popup.looksGreat" = "写得很好！";
+"popup.noIssues" = "没有发现语法问题。";
+"popup.goodToKnow" = "小贴士";
+"popup.corrected" = "修正后";
+"popup.pin" = "固定窗口";
+"popup.unpin" = "取消固定";
+"popup.resizeWindow" = "调整窗口大小";
+"popup.openSettings" = "打开设置";
+"popup.configureService" = "配置 AI 服务…";
+"popup.aiService" = "AI 服务";
+"popup.replacedPrefix" = "已替换 ";
+"popup.replacedInfix" = " 为 ";
+
+/* 翻译 */
+"translation.copy" = "复制";
+"translation.copied" = "已复制";
+"translation.translating" = "翻译中…";
+"translation.translated" = "翻译完成";
+"translation.deepReading" = "精读中…";
+"translation.deepRead" = "精读完成";
+
+/* Errors */
+"error.noAPIKey" = "未配置 API Key。请在设置中填写。";
+"error.noProvider" = "未配置 AI 服务。请在设置中添加 API Key 和模型。";
+"error.modelEmpty" = "模型为空。请在设置中填写。";
+"error.modelUnsupported" = "模型 %@ 不支持%@，请选择适用于该任务的模型。";
+"error.baseURLEmpty" = "Base URL 为空。请在设置中填写。";
+"error.invalidBaseURL" = "Base URL 无效：%@";
+"error.apiError" = "API 错误：%@";
+"error.networkError" = "网络错误：%@";
+"error.invalidResponse" = "无法解析 AI 的响应，请重试。";
+"error.emptyResult" = "AI 服务返回了空结果，请重试。";
+
+/* Updater */
+"updater.menu.check" = "检查更新";
+"updater.menu.checking" = "正在检查更新…";
+"updater.menu.updateTo" = "更新到 Yagraker %@…";
+"updater.status.checking" = "正在检查新版本…";
+"updater.status.upToDate" = "当前已是最新版本。";
+"updater.status.available" = "Yagraker %@ 已可下载。";
+"updater.status.failed" = "无法检查更新：%@";
+"updater.status.background" = "更新将在后台静默检查。";
+"updater.status.lastChecked" = "上次检查 %@";
+
+/* About */
+"about.tagline" = "专注语法、翻译与精读的工作台";
+"about.version" = "版本 %@ (%@)";
+
+/* 补充控件 */
+"settings.language.english" = "英语";
+"settings.language.simplifiedChinese" = "简体中文";
+"settings.language.traditionalChinese" = "繁体中文";
+"settings.provider.saved" = "设置已保存。";
+"settings.shortcuts.reset" = "恢复默认";
+"popup.copy" = "复制";
+"popup.cancel" = "取消";
+"common.close" = "关闭";
+"common.clear" = "清空";
+"error.noTranslatableText" = "没有找到可处理的文本。请先选择或输入一些文本。";
+"updater.status.notConfigured" = "此构建尚未配置更新源。";
+"popup.copiedCorrected" = "已复制修正后的文本。";

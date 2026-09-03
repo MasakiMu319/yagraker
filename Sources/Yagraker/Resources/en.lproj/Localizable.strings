@@ -1,0 +1,181 @@
+/* Menu bar */
+"menu.checkSelected" = "Check Selected Text";
+"menu.quickTranslate" = "Translate";
+"menu.deepRead" = "Deep Read";
+"menu.translateSelection" = "Translate Selection";
+"menu.openRecent" = "Open Recent";
+"menu.noRecent" = "No Recent Checks";
+"menu.clearHistory" = "Clear History";
+"menu.settings" = "Settings";
+"menu.quit" = "Quit Yagraker";
+"menu.edit" = "Edit";
+"menu.edit.undo" = "Undo";
+"menu.edit.redo" = "Redo";
+"menu.edit.cut" = "Cut";
+"menu.edit.copy" = "Copy";
+"menu.edit.paste" = "Paste";
+"menu.edit.pasteMatchStyle" = "Paste and Match Style";
+"menu.edit.delete" = "Delete";
+"menu.edit.selectAll" = "Select All";
+
+/* Shortcuts */
+"shortcut.checkGrammar.title" = "Check Selected Text";
+"shortcut.checkGrammar.detail" = "Read the current selection and check it immediately";
+"shortcut.translate.title" = "Translate Selection";
+"shortcut.translate.detail" = "Translate selected text immediately in the Translate workspace";
+"shortcut.openTranslation.title" = "Open Translate";
+"shortcut.openTranslation.detail" = "Open the translation workspace without running it";
+"shortcut.openDeepRead.title" = "Open Deep Read";
+"shortcut.openDeepRead.detail" = "Open the Deep Read workspace without running it";
+
+/* Settings */
+"settings.title" = "Settings";
+"settings.tab.general" = "General";
+"settings.tab.provider" = "AI Provider";
+"settings.tab.shortcuts" = "Shortcuts";
+"settings.tab.about" = "About";
+"settings.general.language" = "Language";
+"settings.language.system" = "System Default";
+"settings.general.updates" = "Updates";
+"settings.general.autoCheck" = "Automatically check for updates";
+"settings.general.checkNow" = "Check Now";
+"settings.general.installUpdate" = "Install Update…";
+"settings.general.permissions" = "Permissions";
+"settings.permissions.required" = "Required — Yagraker needs this to read selected text";
+"settings.permissions.grant" = "Grant Access";
+"settings.permissions.granted" = "Accessibility access granted";
+"settings.permissions.help" = "Open System Settings → Privacy & Security → Accessibility → enable Yagraker. You may need to restart the app after granting.";
+"settings.provider.provider" = "Provider";
+"settings.provider.hint" = "Choose an independent provider and model for translation, deep reading, and grammar checking.";
+"settings.provider.routing" = "Task routing";
+"settings.provider.credentials" = "Provider credentials";
+"settings.provider.translationRouteHint" = "Choose the provider and model used for translation.";
+"settings.provider.deepReadRouteHint" = "Choose a general-purpose provider and model for close reading.";
+"settings.provider.grammarRouteHint" = "Choose a general-purpose provider and model for grammar.";
+"settings.provider.editProvider" = "Edit provider";
+"settings.provider.credentialsHint" = "API keys and endpoint options are stored separately for each provider.";
+"settings.provider.connection" = "Connection";
+"settings.provider.endpoint" = "API Endpoint";
+"settings.provider.cluster" = "Cluster";
+"settings.provider.baseURL" = "Base URL";
+"settings.provider.baseURLHelp" = "Must accept POST {base}/chat/completions. Use HTTPS; plain HTTP is limited to loopback or private-network endpoints.";
+"settings.provider.apiKey" = "API Key";
+"settings.provider.model" = "Model";
+"settings.provider.translationModel" = "Translation model";
+"settings.provider.deepReadModel" = "Deep Read model";
+"settings.provider.grammarModel" = "Grammar model";
+"settings.provider.modelDefault" = "Default: %@";
+"settings.provider.modelRequired" = "Required — model ID accepted by your endpoint";
+"settings.provider.qwenTranslationModelHelp" = "Supported: qwen-mt-flash (recommended), qwen-mt-plus, qwen-mt-lite, and qwen-mt-turbo (legacy).";
+"settings.provider.qwenModelsMenu" = "Choose a Qwen-MT model";
+"settings.provider.grammarModelHelp" = "Use a general-purpose model; Qwen-MT models are translation-only.";
+"settings.provider.qwenBaseURLHelp" = "Use the API Host from your Alibaba Cloud Model Studio key. It must expose /compatible-mode/v1.";
+"settings.provider.refreshModels" = "Refresh official model list";
+"settings.provider.officialModels" = "Official models";
+"settings.provider.loadingModels" = "Loading models…";
+"settings.provider.noModels" = "No text-generation models were advertised.";
+"settings.provider.modelsNeedKey" = "Add an API key, then refresh the model list.";
+"settings.provider.refreshModelsHint" = "Refresh to load the official model list.";
+"settings.provider.validateTask" = "Validation task";
+"settings.provider.validateTaskButton" = "Validate %@";
+"settings.provider.task.translation" = "Translate";
+"settings.provider.task.deepRead" = "Deep Read";
+"settings.provider.task.grammar" = "Grammar";
+"settings.provider.validate" = "Validate";
+"settings.provider.validating" = "Validating…";
+"settings.provider.save" = "Save";
+"settings.shortcuts.hint" = "Shortcuts work in any app. Click a field and press a new combination, or clear it to leave the action unassigned.";
+"settings.shortcuts.clear" = "Clear Shortcut";
+"settings.shortcuts.record" = "Record Shortcut";
+
+/* Providers */
+"provider.help.gemini" = "Get your key from Google AI Studio";
+"provider.help.qwen" = "Get a key from Alibaba Cloud Model Studio";
+"provider.help.deepseek" = "Get your key from DeepSeek Platform";
+"provider.help.mimo" = "Get your key from Xiaomi MiMo Platform";
+"provider.help.custom" = "Any OpenAI-compatible endpoint — OpenAI, Moonshot Kimi, MiniMax, Doubao, etc.";
+"provider.connected" = "Connected to %@ successfully.";
+"cluster.cn" = "China";
+"cluster.sg" = "Singapore";
+"cluster.eu" = "Europe";
+
+/* Tools */
+"tool.grammar" = "Grammar";
+"tool.translation" = "Translate";
+"tool.deepRead" = "Deep Read";
+
+/* Popup */
+"popup.textToProcess" = "Text to process";
+"popup.original" = "Original";
+"popup.actionGrammar" = "Check";
+"popup.actionTranslate" = "Translate";
+"popup.actionDeepRead" = "Deep Read";
+"popup.accept" = "Accept";
+"popup.retry" = "Retry";
+"popup.regenerate" = "Regenerate";
+"popup.hintTranslate" = "↵ Translate  ⇧↵ Newline";
+"popup.hintGrammar" = "↵ Check  ⇧↵ Newline";
+"popup.hintDeepRead" = "↵ Read  ⇧↵ Newline";
+"popup.hintSubmit" = "↵ Submit  ⇧↵ Newline";
+"popup.copied" = "Copied";
+"popup.looksGreat" = "Looks great!";
+"popup.noIssues" = "No grammar issues found.";
+"popup.goodToKnow" = "Good to know";
+"popup.corrected" = "Corrected";
+"popup.pin" = "Pin window";
+"popup.unpin" = "Unpin window";
+"popup.resizeWindow" = "Resize window";
+"popup.openSettings" = "Open Settings";
+"popup.configureService" = "Configure AI Service…";
+"popup.aiService" = "AI Service";
+"popup.replacedPrefix" = "Replaced ";
+"popup.replacedInfix" = " with ";
+
+/* Translation */
+"translation.copy" = "Copy";
+"translation.copied" = "Copied";
+"translation.translating" = "Translating…";
+"translation.translated" = "Translated";
+"translation.deepReading" = "Reading closely…";
+"translation.deepRead" = "Deep Read";
+
+/* Errors */
+"error.noAPIKey" = "No API key configured. Please set your API key in Settings.";
+"error.noProvider" = "No configured AI provider. Add an API key and model in Settings.";
+"error.modelEmpty" = "Model is empty. Set it in Settings.";
+"error.modelUnsupported" = "Model %@ does not support %@. Choose a model intended for that task.";
+"error.baseURLEmpty" = "Base URL is empty. Set it in Settings.";
+"error.invalidBaseURL" = "Invalid Base URL: %@";
+"error.apiError" = "API error: %@";
+"error.networkError" = "Network error: %@";
+"error.invalidResponse" = "Failed to parse AI response. Please try again.";
+"error.emptyResult" = "The provider returned an empty result. Please try again.";
+
+/* Updater */
+"updater.menu.check" = "Check for Updates";
+"updater.menu.checking" = "Checking for Updates…";
+"updater.menu.updateTo" = "Update to Yagraker %@…";
+"updater.status.checking" = "Checking for a newer version…";
+"updater.status.upToDate" = "You’re using the latest version of Yagraker.";
+"updater.status.available" = "Yagraker %@ is ready to download.";
+"updater.status.failed" = "Couldn’t check for updates: %@";
+"updater.status.background" = "Updates are checked quietly in the background.";
+"updater.status.lastChecked" = "Last checked %@";
+
+/* About */
+"about.tagline" = "A focused workspace for grammar, translation, and close reading";
+"about.version" = "Version %@ (%@)";
+
+/* Additional controls */
+"settings.language.english" = "English";
+"settings.language.simplifiedChinese" = "Simplified Chinese";
+"settings.language.traditionalChinese" = "Traditional Chinese";
+"settings.provider.saved" = "Settings saved.";
+"settings.shortcuts.reset" = "Reset to Defaults";
+"popup.copy" = "Copy";
+"popup.cancel" = "Cancel";
+"common.close" = "Close";
+"common.clear" = "Clear";
+"error.noTranslatableText" = "No translatable text found. Select or enter some text first.";
+"updater.status.notConfigured" = "Update feed is not configured for this build.";
+"popup.copiedCorrected" = "Corrected text copied.";

@@ -1,0 +1,2 @@
+"NSAccessibilityUsageDescription" = "Yagraker 会读取你在其他应用中选中的文本，以便检查语法和翻译。";
+"NSLocalNetworkUsageDescription" = "当你配置本地 AI 端点时，Yagraker 会连接到局域网中的该端点。";
