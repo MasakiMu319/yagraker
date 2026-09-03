@@ -276,6 +276,36 @@ final class TextSegmentTests: XCTestCase {
     }
 }
 
+final class InlineDiffTests: XCTestCase {
+    func testIdenticalTextReturnsUnchanged() {
+        let diff = InlineDiff.diff(original: "hello world", corrected: "hello world")
+        XCTAssertEqual(diff, [.unchanged("hello world")])
+    }
+
+    func testSimpleWordReplacement() {
+        let diff = InlineDiff.diff(original: "These", corrected: "This")
+        XCTAssertEqual(diff, [.deleted("These"), .inserted("This")])
+    }
+
+    func testInsertionInMiddle() {
+        let diff = InlineDiff.diff(original: "context object", corrected: "the context object")
+        XCTAssertEqual(diff, [.inserted("the "), .unchanged("context object")])
+    }
+
+    func testSentenceLevelPreservesUnchangedSpans() {
+        let orig = "`RunContextWrapper` is context object we passed to `Runner.run()`"
+        let corr = "`RunContextWrapper` is the context object we pass to `Runner.run()`"
+        let diff = InlineDiff.diff(original: orig, corrected: corr)
+
+        // Verifies `RunContextWrapper` and `Runner.run()` are preserved as unchanged
+        guard case .unchanged(let first) = diff.first else { return XCTFail("Expected unchanged start, got \(String(describing: diff.first))") }
+        XCTAssertTrue(first.contains("RunContextWrapper"))
+
+        guard case .unchanged(let last) = diff.last else { return XCTFail("Expected unchanged end, got \(String(describing: diff.last))") }
+        XCTAssertTrue(last.contains("Runner.run()"))
+    }
+}
+
 final class SplicingTests: XCTestCase {
     private func result(_ corrections: [Correction]) -> CorrectionResult {
         CorrectionResult(corrections: corrections, tip: "")

@@ -27,13 +27,42 @@ struct SegmentedTextView: View {
         case .plain(let text):
             return Text(text)
         case .correction(let correction):
-            return Text(correction.original)
-                .strikethrough()
-                .foregroundStyle(Theme.wrong)
-            + Text(" ")
-            + Text(correction.corrected)
-                .fontWeight(.medium)
-                .foregroundStyle(Theme.fixed)
+            return inlineDiffText(for: correction)
         }
+    }
+
+    private func inlineDiffText(for correction: Correction) -> Text {
+        let chunks = InlineDiff.diff(original: correction.original, corrected: correction.corrected)
+        guard !chunks.isEmpty else {
+            return Text(correction.corrected)
+        }
+
+        var result = Text("")
+        for (index, chunk) in chunks.enumerated() {
+            switch chunk {
+            case .unchanged(let s):
+                result = result + Text(s)
+            case .deleted(let s):
+                result = result + Text(s)
+                    .strikethrough()
+                    .foregroundStyle(Theme.wrong)
+                if index + 1 < chunks.count, case .inserted(let nextS) = chunks[index + 1] {
+                    if shouldAddSpacing(after: s, before: nextS) {
+                        result = result + Text(" ")
+                    }
+                }
+            case .inserted(let s):
+                result = result + Text(s)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Theme.fixed)
+            }
+        }
+        return result
+    }
+
+    private func shouldAddSpacing(after deleted: String, before inserted: String) -> Bool {
+        guard let last = deleted.last, let first = inserted.first else { return false }
+        if last.isWhitespace || first.isWhitespace { return false }
+        return (last.isLetter || last.isNumber) && (first.isLetter || first.isNumber)
     }
 }

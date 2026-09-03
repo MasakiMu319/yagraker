@@ -199,10 +199,12 @@ public struct GrammarCheckRequest: Sendable {
 public struct SafeCorrection: Codable, Sendable {
     public var original: String?
     public var corrected: String?
+    public var explanation: String?
 
-    public init(original: String? = nil, corrected: String? = nil) {
+    public init(original: String? = nil, corrected: String? = nil, explanation: String? = nil) {
         self.original = original
         self.corrected = corrected
+        self.explanation = explanation
     }
 }
 
@@ -210,28 +212,31 @@ public struct Correction: Codable, Identifiable, Hashable, Sendable {
     public let id: UUID
     public var original: String
     public var corrected: String
+    public var explanation: String?
 
-    public init(id: UUID = UUID(), original: String, corrected: String) {
+    public init(id: UUID = UUID(), original: String, corrected: String, explanation: String? = nil) {
         self.id = id
         self.original = original
         self.corrected = corrected
+        self.explanation = explanation
     }
 
     public init(_ safe: SafeCorrection) {
         let original = safe.original ?? ""
         let corrected = safe.corrected.flatMap { $0.isEmpty ? nil : $0 } ?? original
-        self.init(original: original, corrected: corrected)
+        self.init(original: original, corrected: corrected, explanation: safe.explanation)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case original, corrected
+        case original, corrected, explanation
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let safe = SafeCorrection(
             original: try container.decodeIfPresent(String.self, forKey: .original),
-            corrected: try container.decodeIfPresent(String.self, forKey: .corrected)
+            corrected: try container.decodeIfPresent(String.self, forKey: .corrected),
+            explanation: try container.decodeIfPresent(String.self, forKey: .explanation)
         )
         self.init(safe)
     }
@@ -240,6 +245,7 @@ public struct Correction: Codable, Identifiable, Hashable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(original, forKey: .original)
         try container.encode(corrected, forKey: .corrected)
+        try container.encodeIfPresent(explanation, forKey: .explanation)
     }
 }
 
@@ -253,6 +259,14 @@ public struct CorrectionResult: Codable, Sendable {
     }
 
     public var hasCorrections: Bool { !corrections.isEmpty }
+    public var hasExplanations: Bool {
+        corrections.contains {
+            if let exp = $0.explanation, !exp.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return true
+            }
+            return false
+        }
+    }
 
     private enum CodingKeys: String, CodingKey {
         case corrections, tip

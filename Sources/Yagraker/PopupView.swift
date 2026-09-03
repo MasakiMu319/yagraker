@@ -12,6 +12,12 @@ struct PopupView: View {
 
     @State private var showCopiedFeedback = false
     @State private var copyFeedbackID = UUID()
+    @State private var grammarViewMode = GrammarViewMode.diff
+
+    private enum GrammarViewMode: String, CaseIterable {
+        case diff
+        case preview
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -287,6 +293,9 @@ struct PopupView: View {
     private func grammarResult(_ result: CorrectionResult) -> some View {
         if result.hasCorrections {
             correctedSection(result)
+            if result.hasExplanations {
+                explanationsSection(result.corrections)
+            }
             if !result.tip.isEmpty {
                 analysisSection(l10n.t("popup.goodToKnow"), text: result.tip)
             }
@@ -301,16 +310,123 @@ struct PopupView: View {
 
     private func correctedSection(_ result: CorrectionResult) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(l10n.t("popup.corrected"))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Theme.inkSecondary)
-                .textCase(.uppercase)
-            SegmentedTextView(originalText: appState.originalText, corrections: result.corrections)
-                .padding(10)
+            HStack {
+                Text(l10n.t("popup.corrected"))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.inkSecondary)
+                    .textCase(.uppercase)
+
+                Spacer()
+
+                HStack(spacing: 2) {
+                    grammarModeButton(mode: .diff, title: l10n.t("popup.diff"))
+                    grammarModeButton(mode: .preview, title: l10n.t("popup.preview"))
+                }
+                .padding(2)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Theme.fixedSoft)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Theme.cardSubtle)
                 )
+            }
+
+            Group {
+                if grammarViewMode == .diff {
+                    SegmentedTextView(originalText: appState.originalText, corrections: result.corrections)
+                } else {
+                    Text(result.splicingCorrections(into: appState.originalText) ?? appState.originalText)
+                        .font(.system(size: 13))
+                        .lineSpacing(3)
+                        .foregroundStyle(Theme.ink)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Theme.fixedSoft)
+            )
+        }
+    }
+
+    private func grammarModeButton(mode: GrammarViewMode, title: String) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                grammarViewMode = mode
+            }
+        } label: {
+            Text(title)
+                .font(.system(size: 10, weight: grammarViewMode == mode ? .semibold : .medium))
+                .foregroundStyle(grammarViewMode == mode ? Theme.ink : Theme.inkSecondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(grammarViewMode == mode ? Theme.card : Color.clear)
+                        .shadow(color: grammarViewMode == mode ? Color.black.opacity(0.06) : Color.clear, radius: 1, x: 0, y: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func explanationsSection(_ corrections: [Correction]) -> some View {
+        let items = corrections.filter {
+            if let exp = $0.explanation, !exp.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return true
+            }
+            return false
+        }
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 5) {
+                    Image(systemName: "character.bubble")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.accent)
+                    Text(l10n.t("popup.explanations"))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.inkSecondary)
+                        .textCase(.uppercase)
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(items) { item in
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(item.original)
+                                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                    .strikethrough()
+                                    .foregroundStyle(Theme.wrong)
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(Theme.inkSecondary.opacity(0.6))
+                                Text(item.corrected)
+                                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(Theme.fixed)
+                            }
+                            if let explanation = item.explanation, !explanation.isEmpty {
+                                Text(LocalizedStringKey(explanation))
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Theme.ink)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        if item.id != items.last?.id {
+                            Rectangle()
+                                .fill(Theme.hairline)
+                                .frame(height: 0.5)
+                        }
+                    }
+                }
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Theme.cardSubtle)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Theme.cardBorder, lineWidth: 0.5)
+            )
         }
     }
 
@@ -343,7 +459,7 @@ struct PopupView: View {
                     .foregroundStyle(Theme.inkSecondary)
                     .textCase(.uppercase)
             }
-            Text(text)
+            Text(LocalizedStringKey(text))
                 .font(.system(size: 12.5))
                 .foregroundStyle(Theme.ink)
                 .textSelection(.enabled)

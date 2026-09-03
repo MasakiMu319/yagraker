@@ -17,7 +17,11 @@ public enum Prompts {
         Return one JSON object and nothing else:
         {
           "corrections": [
-            { "original": "exact span from the submission", "corrected": "replacement" }
+            {
+              "original": "exact span from the submission",
+              "corrected": "replacement",
+              "explanation": "concise explanation in \(reader.promptName) of why this was changed"
+            }
           ],
           "tip": "one short learning tip in \(reader.promptName)"
         }
@@ -28,7 +32,8 @@ public enum Prompts {
         - spans never overlap, and corrections are listed in the order their spans appear
         - `corrected` is never empty; to delete words, include a neighboring word in the span so `corrected` holds the text that remains
         - to insert words, anchor the span on an adjacent word
-        - one correction per independent mistake, normally one to three words; never a whole sentence when a shorter span identifies the issue
+        - one correction per independent mistake, normally one to three words; isolate each issue precisely so the user learns what went wrong; never output a whole sentence when a shorter span identifies the issue
+        - `explanation` is a concise one-sentence explanation in \(reader.promptName) explaining the grammar rule or reason behind this specific change (e.g. missing article, tense mismatch, comma splice, awkward phrasing)
         - every mistake you fix appears as a correction, so applying them all to the submission yields the fully corrected text
 
         `tip` is one to three sentences of conversational \(reader.promptName), plain text without Markdown. Teach the single most useful pattern behind this submission's mistakes: state the rule or contrast precisely, reuse the writer's own words as the example, and add a concrete memory hook when one exists (word family, minimal pair, fixed collocation). For a plain typo, name the exact confusion (e.g. -ar vs -er) and give a hook such as a word family (grammar / diagram / telegram). Never give study-method advice (copying out sentences, writing example sentences, memorizing, "read and practice more") and never recommend products, websites, or services. When there are no corrections, `tip` is an empty string.

@@ -65,6 +65,10 @@ public final class GeminiService: LLMServicing, @unchecked Sendable {
                             "type": "STRING",
                             "description": "Non-empty replacement for the span.",
                         ],
+                        "explanation": [
+                            "type": "STRING",
+                            "description": "Brief explanation in the reader's language of why this was changed.",
+                        ],
                     ],
                     "required": ["original", "corrected"],
                 ],

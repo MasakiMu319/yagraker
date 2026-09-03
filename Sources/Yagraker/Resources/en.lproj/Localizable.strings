@@ -122,6 +122,9 @@
 "popup.noIssues" = "No grammar issues found.";
 "popup.goodToKnow" = "Good to know";
 "popup.corrected" = "Corrected";
+"popup.diff" = "Diff";
+"popup.preview" = "Clean";
+"popup.explanations" = "Explanations";
 "popup.pin" = "Pin window";
 "popup.unpin" = "Unpin window";
 "popup.resizeWindow" = "Resize window";

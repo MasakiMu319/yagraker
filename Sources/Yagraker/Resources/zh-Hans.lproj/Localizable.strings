@@ -122,6 +122,9 @@
 "popup.noIssues" = "没有发现语法问题。";
 "popup.goodToKnow" = "小贴士";
 "popup.corrected" = "修正后";
+"popup.diff" = "对比";
+"popup.preview" = "最终效果";
+"popup.explanations" = "改动解析";
 "popup.pin" = "固定窗口";
 "popup.unpin" = "取消固定";
 "popup.resizeWindow" = "调整窗口大小";
