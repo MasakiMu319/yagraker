@@ -1,60 +1,146 @@
 # Yagraker
 
-A native macOS 15+ menu-bar workspace for grammar checking, translation, and close reading.
+<p align="center">
+  <strong>A native macOS menu-bar workspace for streaming translation, close reading, and grammar checking.</strong>
+</p>
 
-## Features
+<p align="center">
+  <img src="Sources/Yagraker/Resources/yagraker-mark.svg" alt="Yagraker Logo" width="80" height="80" />
+</p>
 
-- `⇧⌘G`: check selected text and paste accepted corrections back
-- `⌥⌘T`: stream-translate the selected text in the Translate workspace
-- `⌘2` / `⌘3`: open the Translate / Deep Read workspaces
-- Grammar Check, Translate, and Deep Read are separate tabs; Deep Read streams a natural translation plus useful sentence structure, clause, expression, and ambiguity analysis
-- Gemini, Qwen / Qwen-MT, DeepSeek, Xiaomi MiMo, and custom OpenAI-compatible endpoints
-- BYOK credentials stored in Keychain; settings in UserDefaults; recent checks stay in memory only
-- Runtime English / Simplified Chinese / Traditional Chinese UI
-- Sparkle update plumbing (feed and EdDSA key are supplied at distribution build time)
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-macOS%2015%2B-blue.svg?style=flat" alt="Platform" />
+  <img src="https://img.shields.io/badge/Swift-5.10%2B-orange.svg?style=flat" alt="Swift" />
+  <img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat" alt="License" />
+</p>
 
-## Build and test
+---
+
+**Yagraker** is a native, keyboard-first macOS workspace built for writers, researchers, and multilingual readers. Combining a warm **Paper & Ink** visual aesthetic with modern macOS translucent materials, Yagraker floats alongside your active workflow to deliver real-time AI translations, in-depth syntactic and cultural sentence breakdowns, and in-place grammar repairs.
+
+---
+
+## ✨ Features
+
+- ⚡️ **Instant Floating Workspace**: Summon with global shortcuts (`⌥⌘T`, `⇧⌘G`) or from the menu bar to process selected text immediately.
+- 📖 **Three Focused Workspaces**:
+  - **Translate**: Low-latency, streaming multi-language translation.
+  - **Deep Read**: Detailed analysis breaking down sentence structure, clauses, nuances, idioms, and potential ambiguities.
+  - **Grammar**: Inline diffing of grammar, spelling, and phrasing with one-click in-place text replacement.
+- 🔀 **Independent Provider & Model Routing**: Configure different LLMs for different tasks (e.g., dedicated `Qwen-MT` for fast translations, `DeepSeek` or `Gemini` for deep linguistic analysis).
+- 🎨 **Thoughtful UI & Craftsmanship**:
+  - Translucent macOS material overlay with continuous smooth corners.
+  - Integrated input card with auto-expanding editor, word counter, and clear button.
+  - Live pulsing streaming indicators, one-click regeneration, and visual copy confirmation.
+  - Drag-anywhere header with ample grab area even at minimum window width.
+- 🔒 **Privacy-First (BYOK)**: No telemetry, no intermediate proxies. All API requests travel directly from your Mac to provider endpoints over HTTPS. API keys stay securely inside your macOS Keychain.
+- 🌐 **Multilingual UI**: Seamless runtime switching between English, Simplified Chinese (简体中文), and Traditional Chinese (繁體中文).
+- 🔄 **Sparkle Updates**: Built-in silent and interactive application update plumbing.
+
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Shortcut | Scope | Action |
+| :--- | :--- | :--- |
+| `⌥⌘T` | Global | Capture selected text and open the **Translate** workspace |
+| `⇧⌘G` | Global | Capture selected text and run a **Grammar Check** |
+| `⌘1` | Inside App | Switch to **Grammar** workspace |
+| `⌘2` | Inside App | Switch to **Translate** workspace |
+| `⌘3` | Inside App | Switch to **Deep Read** workspace |
+| `Return` (`↵`) | Editor | Submit input text for processing |
+| `Shift + Return` (`⇧↵`) | Editor | Insert a new line in the text editor |
+| `Esc` | Window | Dismiss the floating panel (when unpinned) |
+
+*All global shortcuts can be customized in **Settings → Shortcuts**.*
+
+---
+
+## 🤖 Supported Providers & Model Routing
+
+Yagraker allows you to pair each task with the model best suited for it:
+
+| Provider | Supported Workspaces | Notes & Suggested Models |
+| :--- | :--- | :--- |
+| **Aliyun Qwen / Qwen-MT** | Translate, Deep Read, Grammar | Official specialized machine translation models (`qwen-mt-flash`, `qwen-mt-plus`, etc.) for translation; general-purpose models for deep reading. |
+| **Google Gemini** | Translate, Deep Read, Grammar | Official model list integration (`gemini-2.5-flash`, `gemini-1.5-pro`). High throughput with native SSE streaming. |
+| **DeepSeek** | Translate, Deep Read, Grammar | High reasoning and analysis fidelity (`deepseek-chat`). |
+| **Xiaomi MiMo** | Translate, Deep Read, Grammar | Supports regional clusters (China, Singapore, Europe). |
+| **Custom OpenAI-Compatible** | Translate, Deep Read, Grammar | Any OpenAI-compatible endpoint (OpenAI, Moonshot Kimi, MiniMax, Doubao, Ollama, etc.). |
+
+Settings automatically fetches official model catalogs from supported providers, allowing one-click selection.
+
+---
+
+## 🎨 Design & Interaction Details
+
+Yagraker avoids cold generic UI in favor of an artisanal tactile experience:
+- **Paper & Ink Theme**: Calibrated light and dark tones reminiscent of warm parchment and ink.
+- **Card-Based Visual Hierarchy**: Input sections and result outputs are nested within clear, structured cards with subtle borders.
+- **Fluid Layout**: Window resizing smoothly distributes space between the input and output views. The editor hugs content on compact queries while granting ample breathing room for longer essays.
+- **Instant Micro-Feedback**: Interactive elements feature soft spring physics, and copy actions trigger immediate visual feedback.
+
+---
+
+## 🛠️ Build & Installation
+
+### Requirements
+- macOS 15.0 or later
+- Xcode 16.0+ (or Swift 5.10+ command-line tools)
+
+### 1. Quick Build & Test
+Clone the repository and build using Swift Package Manager:
 
 ```bash
+git clone https://github.com/MasakiMu319/yagraker.git
+cd yagraker
+
 swift build
 swift test
 ```
 
-Translation, Deep Read, and Grammar Check have independent provider and model routes. Settings loads the provider's official model catalog through its model-list API; Qwen-MT entries are offered for translation while general-purpose entries are offered for Deep Read and Grammar Check. Custom OpenAI-compatible endpoints can still enter a model ID manually when they do not expose `/models`.
-
-Qwen-MT translation uses the Alibaba Cloud Model Studio OpenAI-compatible endpoint. The default model is `qwen-mt-flash`; `qwen-mt-plus`, `qwen-mt-lite`, and `qwen-mt-turbo` are also supported. Configure the provider and API key in Settings. Qwen-MT models are translation-only, so choose separate general-purpose models for Deep Read and Grammar Check.
-
-Build a universal Apple Silicon + Intel app bundle:
+### 2. Universal Application Bundle (`.app`)
+Build a universal binary (`arm64` + `x86_64`) signed for local development:
 
 ```bash
+# By default, creates or uses a 'Yagraker Local Development' self-signed cert in Keychain
 bash Scripts/build-app.sh
+
+# Launch the built application
 open dist/Yagraker.app
 ```
 
-Local builds require a stable code-signing identity because macOS Accessibility permission is bound to the app's code identity. Create a self-signed Code Signing certificate named `Yagraker Local Development` once in Keychain Access, or provide an existing Apple Development identity:
+> **Note on Accessibility Permissions:**
+> macOS Accessibility permission is bound to the application's code signature. Ad-hoc signatures change designated requirements upon rebuilds and invalidate granted permissions. `build-app.sh` automatically signs with a persistent development identity so you do not have to re-grant permissions every rebuild.
+>
+> If you need to reset stale system permissions:
+> ```bash
+> tccutil reset Accessibility com.yagraker.app
+> ```
+
+### 3. Developer ID & Notarization (Release Distribution)
+For release distribution with Developer ID signing and Apple notary service:
 
 ```bash
-SIGN_IDENTITY='Apple Development: …' bash Scripts/build-app.sh
-```
-
-Ad-hoc signing is intentionally unsupported because every rebuild changes its designated requirement and invalidates Accessibility permission. When switching an existing installation from ad-hoc to stable signing, reset the stale permission once, reopen Yagraker, and grant access again:
-
-```bash
-tccutil reset Accessibility com.yagraker.app
-```
-
-For a Developer ID distribution build, first store App Store Connect credentials with `notarytool store-credentials`, then run:
-
-```bash
-SIGN_IDENTITY='Developer ID Application: …' \
+SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' \
 NOTARYTOOL_PROFILE='yagraker-notary' \
 YAGRAKER_FEED_URL='https://example.com/appcast.xml' \
 YAGRAKER_PUBLIC_ED_KEY='BASE64_PUBLIC_KEY' \
 bash Scripts/build-app.sh
 ```
 
-Developer ID mode requires all three release settings, submits the app for notarization, staples and validates the ticket, runs Gatekeeper assessment, and emits `dist/Yagraker.zip`. Sparkle requires a publisher-owned appcast and EdDSA key; release credentials are never embedded in source.
+This compiles, packages Sparkle, signs nested binaries, submits for notarization, staples the notarization ticket, and outputs `dist/Yagraker.zip`.
 
-## Privacy
+---
 
-Selected text is sent directly from the Mac to the configured model provider. Yagraker has no relay server. API keys are stored as one generic-password Keychain item under service `com.yagraker.app`; history is capped at ten entries and is never persisted. Provider traffic requires HTTPS, except that custom endpoints may use HTTP on loopback or private networks.
+## 🔒 Privacy & Security
+
+- **Direct Connections**: All network requests connect directly to your chosen AI provider. There are no tracking servers, telemetry services, or data collection relays.
+- **Keychain Storage**: API keys are securely persisted in the macOS Keychain under the service identifier `com.yagraker.app`.
+- **Ephemeral State**: Text history is capped in memory only and is discarded upon quitting the application.
+
+---
+
+## 📄 License
+
+This project is open source and available under the [MIT License](LICENSE).
