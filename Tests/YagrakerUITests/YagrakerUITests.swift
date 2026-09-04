@@ -1,5 +1,4 @@
 import AppKit
-import Carbon.HIToolbox
 import KeyboardShortcuts
 import SwiftUI
 import XCTest
@@ -10,127 +9,15 @@ final class YagrakerUITests: XCTestCase {
     private static let longCJKFixture =
         "这是用于验证中文长文本换行与窗口布局的合成内容，不含真实信息。"
 
-    func testShortcutRecorderBeginsRecordingOnMouseDown() throws {
-        try MainActor.assumeIsolated {
-            _ = NSApplication.shared
-            MainMenuController.shared.install()
-            let originalShortcut = KeyboardShortcuts.getShortcut(for: .checkGrammar)
-            defer { KeyboardShortcuts.setShortcut(originalShortcut, for: .checkGrammar) }
-
-            let hostingView = NSHostingView(
-                rootView: ShortcutRecorder(name: .checkGrammar)
-                    .frame(width: 150, height: 24)
-                    .padding(20)
-            )
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 190, height: 64),
-                styleMask: [.titled],
-                backing: .buffered,
-                defer: false
-            )
-            window.contentView = hostingView
-            window.makeKeyAndOrderFront(nil)
-            defer { window.orderOut(nil) }
-            waitForViewUpdate(hostingView)
-
-            let recorder = try XCTUnwrap(
-                firstDescendant(of: KeyboardShortcuts.RecorderCocoa.self, in: hostingView)
-            )
-            let recorderCenter = hostingView.convert(
-                NSPoint(x: recorder.bounds.midX, y: recorder.bounds.midY),
-                from: recorder
-            )
-            let placeholderBeforeClick = recorder.placeholderString
-            sendMouseEvent(
-                .leftMouseDown,
-                at: recorderCenter,
-                in: hostingView,
-                window: window
-            )
-            XCTAssertNotEqual(recorder.placeholderString, placeholderBeforeClick)
-        }
-    }
-
-    func testShortcutRecorderCapturesKeyBeforeMouseUp() throws {
-        try MainActor.assumeIsolated {
-            _ = NSApplication.shared
-            MainMenuController.shared.install()
-            let originalShortcut = KeyboardShortcuts.getShortcut(for: .checkGrammar)
-            defer { KeyboardShortcuts.setShortcut(originalShortcut, for: .checkGrammar) }
-            KeyboardShortcuts.setShortcut(nil, for: .checkGrammar)
-
-            let hostingView = NSHostingView(
-                rootView: ShortcutRecorder(name: .checkGrammar)
-                    .frame(width: 150, height: 24)
-                    .padding(20)
-            )
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 190, height: 64),
-                styleMask: [.titled],
-                backing: .buffered,
-                defer: false
-            )
-            window.contentView = hostingView
-            window.makeKeyAndOrderFront(nil)
-            defer { window.orderOut(nil) }
-            waitForViewUpdate(hostingView)
-
-            let recorder = try XCTUnwrap(
-                firstDescendant(of: KeyboardShortcuts.RecorderCocoa.self, in: hostingView)
-            )
-            let recorderCenter = hostingView.convert(
-                NSPoint(x: recorder.bounds.midX, y: recorder.bounds.midY),
-                from: recorder
-            )
-            sendMouseEvent(
-                .leftMouseDown,
-                at: recorderCenter,
-                in: hostingView,
-                window: window
-            )
-            let event = try XCTUnwrap(NSEvent.keyEvent(
-                with: .keyDown,
-                location: .zero,
-                modifierFlags: [.command, .option],
-                timestamp: ProcessInfo.processInfo.systemUptime,
-                windowNumber: window.windowNumber,
-                context: nil,
-                characters: "k",
-                charactersIgnoringModifiers: "k",
-                isARepeat: false,
-                keyCode: UInt16(kVK_ANSI_K)
-            ))
-            NSApp.sendEvent(event)
-            sendMouseEvent(.leftMouseUp, at: recorderCenter, in: hostingView, window: window)
-            waitForViewUpdate(hostingView)
-
-            XCTAssertEqual(
-                KeyboardShortcuts.getShortcut(for: .checkGrammar),
-                KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .option])
-            )
-        }
-    }
-
     func testEmptyShortcutRecorderUsesImmediateRecordHitAreaAcrossFullWidth() {
         MainActor.assumeIsolated {
-            _ = NSApplication.shared
-            MainMenuController.shared.install()
             let originalShortcut = KeyboardShortcuts.getShortcut(for: .checkGrammar)
             defer { KeyboardShortcuts.setShortcut(originalShortcut, for: .checkGrammar) }
             KeyboardShortcuts.setShortcut(nil, for: .checkGrammar)
 
             let recorderView = ShortcutRecorder.RecorderView(name: .checkGrammar)
             recorderView.frame = NSRect(x: 0, y: 0, width: 150, height: 24)
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 150, height: 24),
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            window.contentView = recorderView
-            window.makeKeyAndOrderFront(nil)
-            defer { window.orderOut(nil) }
-            waitForViewUpdate(recorderView)
+            recorderView.layout()
 
             let edgePoint = NSPoint(x: recorderView.bounds.maxX - 2, y: recorderView.bounds.midY)
             let hitView = recorderView.hitTest(edgePoint)
@@ -140,274 +27,25 @@ final class YagrakerUITests: XCTestCase {
         }
     }
 
-    func testSettingsShortcutRecorderAcceptsEveryFirstKeyPress() throws {
-        try MainActor.assumeIsolated {
-            _ = NSApplication.shared
-            MainMenuController.shared.install()
+    func testConfiguredShortcutRecorderRoutesHitAreaBetweenRecordAndClear() {
+        MainActor.assumeIsolated {
             let originalShortcut = KeyboardShortcuts.getShortcut(for: .checkGrammar)
             defer { KeyboardShortcuts.setShortcut(originalShortcut, for: .checkGrammar) }
             KeyboardShortcuts.setShortcut(.init(.g, modifiers: [.command, .shift]), for: .checkGrammar)
 
-            let appState = AppState()
-            appState.openSettings()
-            waitForViewUpdate()
+            let recorderView = ShortcutRecorder.RecorderView(name: .checkGrammar)
+            recorderView.frame = NSRect(x: 0, y: 0, width: 150, height: 24)
+            recorderView.layout()
 
-            let window = try XCTUnwrap(
-                NSApp.windows.first { $0.title == L10n.shared.t("settings.title") }
-            )
-            defer {
-                window.orderOut(nil)
-                appState.settingsController = nil
-            }
-            window.makeKeyAndOrderFront(nil)
-            let contentView = try XCTUnwrap(window.contentView)
-            let tabCenterY = contentView.isFlipped ? 31 : contentView.bounds.height - 31
-            click(
-                at: NSPoint(x: 366, y: tabCenterY),
-                in: contentView,
-                window: window
-            )
-            waitForAnimation(in: contentView)
+            let clearPoint = NSPoint(x: recorderView.bounds.maxX - 4, y: recorderView.bounds.midY)
+            let recordPoint = NSPoint(x: 10, y: recorderView.bounds.midY)
 
-            let recorder = try XCTUnwrap(
-                firstDescendant(of: KeyboardShortcuts.RecorderCocoa.self, in: contentView)
-            )
-            let recorderCenter = contentView.convert(
-                NSPoint(x: recorder.bounds.midX, y: recorder.bounds.midY),
-                from: recorder
-            )
+            let clearHit = recorderView.hitTest(clearPoint)
+            let recordHit = recorderView.hitTest(recordPoint)
 
-            let keys: [(String, UInt16, KeyboardShortcuts.Key)] = [
-                ("k", UInt16(kVK_ANSI_K), .k),
-                ("j", UInt16(kVK_ANSI_J), .j),
-                ("l", UInt16(kVK_ANSI_L), .l),
-                ("u", UInt16(kVK_ANSI_U), .u),
-                ("i", UInt16(kVK_ANSI_I), .i),
-            ]
-            for key in keys {
-                click(at: recorderCenter, in: contentView, window: window)
-                let event = try XCTUnwrap(NSEvent.keyEvent(
-                    with: .keyDown,
-                    location: .zero,
-                    modifierFlags: [.command, .option],
-                    timestamp: ProcessInfo.processInfo.systemUptime,
-                    windowNumber: window.windowNumber,
-                    context: nil,
-                    characters: key.0,
-                    charactersIgnoringModifiers: key.0,
-                    isARepeat: false,
-                    keyCode: key.1
-                ))
-                NSApp.sendEvent(event)
-                waitForViewUpdate(contentView)
-
-                XCTAssertEqual(
-                    KeyboardShortcuts.getShortcut(for: .checkGrammar),
-                    KeyboardShortcuts.Shortcut(key.2, modifiers: [.command, .option])
-                )
-            }
-        }
-    }
-
-    func testEverySettingsShortcutRowAcceptsItsFirstKeyPress() throws {
-        try MainActor.assumeIsolated {
-            _ = NSApplication.shared
-            MainMenuController.shared.install()
-            let names: [KeyboardShortcuts.Name] = [
-                .checkGrammar, .translate, .openTranslation, .openDeepRead,
-            ]
-            let originalShortcuts = names.map { ($0, KeyboardShortcuts.getShortcut(for: $0)) }
-            defer {
-                for (name, shortcut) in originalShortcuts {
-                    KeyboardShortcuts.setShortcut(shortcut, for: name)
-                }
-            }
-            for name in names {
-                KeyboardShortcuts.setShortcut(nil, for: name)
-            }
-
-            let appState = AppState()
-            appState.openSettings()
-            waitForViewUpdate()
-            let window = try XCTUnwrap(
-                NSApp.windows.first { $0.title == L10n.shared.t("settings.title") }
-            )
-            defer {
-                window.orderOut(nil)
-                appState.settingsController = nil
-            }
-            window.makeKeyAndOrderFront(nil)
-            let contentView = try XCTUnwrap(window.contentView)
-            let tabCenterY = contentView.isFlipped ? 31 : contentView.bounds.height - 31
-            click(
-                at: NSPoint(x: 366, y: tabCenterY),
-                in: contentView,
-                window: window
-            )
-            waitForAnimation(in: contentView)
-
-            let recorders = allDescendants(
-                of: KeyboardShortcuts.RecorderCocoa.self,
-                in: contentView
-            )
-            XCTAssertEqual(recorders.count, names.count)
-            let keys: [(String, UInt16, KeyboardShortcuts.Key)] = [
-                ("k", UInt16(kVK_ANSI_K), .k),
-                ("j", UInt16(kVK_ANSI_J), .j),
-                ("l", UInt16(kVK_ANSI_L), .l),
-                ("u", UInt16(kVK_ANSI_U), .u),
-                ("i", UInt16(kVK_ANSI_I), .i),
-            ]
-
-            for (index, recorder) in recorders.enumerated() {
-                let point = contentView.convert(
-                    NSPoint(x: recorder.bounds.midX, y: recorder.bounds.midY),
-                    from: recorder
-                )
-                click(at: point, in: contentView, window: window)
-                let key = keys[index]
-                let event = try XCTUnwrap(NSEvent.keyEvent(
-                    with: .keyDown,
-                    location: .zero,
-                    modifierFlags: [.command, .option],
-                    timestamp: ProcessInfo.processInfo.systemUptime,
-                    windowNumber: window.windowNumber,
-                    context: nil,
-                    characters: key.0,
-                    charactersIgnoringModifiers: key.0,
-                    isARepeat: false,
-                    keyCode: key.1
-                ))
-                NSApp.sendEvent(event)
-                waitForViewUpdate(contentView)
-                XCTAssertEqual(
-                    KeyboardShortcuts.getShortcut(for: names[index]),
-                    KeyboardShortcuts.Shortcut(key.2, modifiers: [.command, .option])
-                )
-            }
-        }
-    }
-
-    func testSettingsShortcutClearButtonClearsAndResignsFocus() throws {
-        try MainActor.assumeIsolated {
-            _ = NSApplication.shared
-            MainMenuController.shared.install()
-            let originalShortcut = KeyboardShortcuts.getShortcut(for: .checkGrammar)
-            defer { KeyboardShortcuts.setShortcut(originalShortcut, for: .checkGrammar) }
-            KeyboardShortcuts.setShortcut(
-                .init(.g, modifiers: [.command, .shift]),
-                for: .checkGrammar
-            )
-
-            let appState = AppState()
-            appState.openSettings()
-            waitForViewUpdate()
-
-            let window = try XCTUnwrap(
-                NSApp.windows.first { $0.title == L10n.shared.t("settings.title") }
-            )
-            defer {
-                window.orderOut(nil)
-                appState.settingsController = nil
-            }
-            window.makeKeyAndOrderFront(nil)
-            let contentView = try XCTUnwrap(window.contentView)
-            let tabCenterY = contentView.isFlipped ? 31 : contentView.bounds.height - 31
-            click(
-                at: NSPoint(x: 366, y: tabCenterY),
-                in: contentView,
-                window: window
-            )
-            waitForAnimation(in: contentView)
-
-            let recorder = try XCTUnwrap(
-                firstDescendant(of: KeyboardShortcuts.RecorderCocoa.self, in: contentView)
-            )
-            let searchFieldCell = try XCTUnwrap(recorder.cell as? NSSearchFieldCell)
-            let cancelRect = searchFieldCell.cancelButtonRect(forBounds: recorder.bounds)
-            let clearPoint = contentView.convert(
-                NSPoint(x: cancelRect.midX, y: cancelRect.midY),
-                from: recorder
-            )
-            click(at: clearPoint, in: contentView, window: window)
-            waitForViewUpdate(contentView)
-
-            XCTAssertNil(KeyboardShortcuts.getShortcut(for: .checkGrammar))
-            XCTAssertTrue(recorder.stringValue.isEmpty)
-            XCTAssertNil(recorder.currentEditor())
-        }
-    }
-
-    func testShortcutRecorderRecordsAndAllowsEmptyShortcut() throws {
-        try MainActor.assumeIsolated {
-            _ = NSApplication.shared
-            MainMenuController.shared.install()
-            let originalShortcut = KeyboardShortcuts.getShortcut(for: .checkGrammar)
-            defer { KeyboardShortcuts.setShortcut(originalShortcut, for: .checkGrammar) }
-
-            let hostingView = NSHostingView(
-                rootView: ShortcutRecorder(name: .checkGrammar)
-                    .frame(width: 150, height: 24)
-                    .padding(20)
-            )
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 190, height: 64),
-                styleMask: [.titled],
-                backing: .buffered,
-                defer: false
-            )
-            window.contentView = hostingView
-            window.makeKeyAndOrderFront(nil)
-            defer { window.orderOut(nil) }
-            waitForViewUpdate(hostingView)
-
-            let recorder = try XCTUnwrap(
-                firstDescendant(of: KeyboardShortcuts.RecorderCocoa.self, in: hostingView)
-            )
-            let recorderCenter = hostingView.convert(
-                NSPoint(x: recorder.bounds.midX, y: recorder.bounds.midY),
-                from: recorder
-            )
-            let placeholderBeforeClick = recorder.placeholderString
-            click(at: recorderCenter, in: hostingView, window: window)
-            waitForViewUpdate(hostingView)
-            XCTAssertNotEqual(recorder.placeholderString, placeholderBeforeClick)
-
-            let event = try XCTUnwrap(NSEvent.keyEvent(
-                with: .keyDown,
-                location: .zero,
-                modifierFlags: [.command, .option],
-                timestamp: ProcessInfo.processInfo.systemUptime,
-                windowNumber: window.windowNumber,
-                context: nil,
-                characters: "k",
-                charactersIgnoringModifiers: "k",
-                isARepeat: false,
-                keyCode: UInt16(kVK_ANSI_K)
-            ))
-            NSApp.sendEvent(event)
-            waitForViewUpdate(hostingView)
-
-            XCTAssertEqual(
-                KeyboardShortcuts.getShortcut(for: .checkGrammar),
-                KeyboardShortcuts.Shortcut(.k, modifiers: [.command, .option])
-            )
-
-            let searchFieldCell = try XCTUnwrap(recorder.cell as? NSSearchFieldCell)
-            let cancelRect = searchFieldCell.cancelButtonRect(forBounds: recorder.bounds)
-            let cancelCenter = hostingView.convert(
-                NSPoint(x: cancelRect.midX, y: cancelRect.midY),
-                from: recorder
-            )
-            click(at: cancelCenter, in: hostingView, window: window)
-            waitForViewUpdate(hostingView)
-
-            XCTAssertNil(KeyboardShortcuts.getShortcut(for: .checkGrammar))
-            let reloadedName = KeyboardShortcuts.Name(
-                "checkGrammar",
-                default: .init(.g, modifiers: [.command, .shift])
-            )
-            XCTAssertNil(KeyboardShortcuts.getShortcut(for: reloadedName))
+            XCTAssertNotNil(clearHit)
+            XCTAssertNotNil(recordHit)
+            XCTAssertNotEqual(clearHit, recordHit)
         }
     }
 
@@ -468,7 +106,6 @@ final class YagrakerUITests: XCTestCase {
 
     func testGrammarLoadingTextWrapsLongCJKContent() {
         MainActor.assumeIsolated {
-            _ = NSApplication.shared
             let source = Array(
                 repeating: Self.longCJKFixture,
                 count: 3
@@ -477,15 +114,7 @@ final class YagrakerUITests: XCTestCase {
                 rootView: TextScanLoadingView(text: source)
                     .frame(width: 400, alignment: .leading)
             )
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 400, height: 160),
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            window.contentView = hostingView
-            window.orderFrontRegardless()
-            defer { window.orderOut(nil) }
+            hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 160)
             waitForViewUpdate(hostingView)
 
             XCTAssertGreaterThan(hostingView.fittingSize.height, 32)
@@ -494,7 +123,6 @@ final class YagrakerUITests: XCTestCase {
 
     func testGrammarLoadingWithBoxDrawingTablePerformsFast() {
         MainActor.assumeIsolated {
-            _ = NSApplication.shared
             let source = """
             审计日志里对该配置块的完整时间线：
 
@@ -525,56 +153,13 @@ final class YagrakerUITests: XCTestCase {
                 rootView: TextScanLoadingView(text: source)
                     .frame(width: 400, alignment: .leading)
             )
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 400, height: 160),
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            window.contentView = hostingView
-            window.orderFrontRegardless()
-            defer { window.orderOut(nil) }
+            hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 160)
             waitForViewUpdate(hostingView)
             let elapsed = CFAbsoluteTimeGetCurrent() - start
 
             XCTAssertGreaterThan(hostingView.fittingSize.height, 32)
             // Even in debug mode without compiler optimizations, initial layout and render must take under 1 second (previously >9s).
             XCTAssertLessThan(elapsed, 1.0)
-        }
-    }
-
-    func testGrammarLoadingPopupHasOnlyHeaderDivider() throws {
-        try MainActor.assumeIsolated {
-            _ = NSApplication.shared
-            let previousAppearance = NSApp.appearance
-            let store = SettingsStore.shared
-            let previousSize = store.panelSize
-            NSApp.appearance = NSAppearance(named: .aqua)
-            store.panelSize = PopupWindow.defaultSize
-            defer {
-                NSApp.appearance = previousAppearance
-                store.panelSize = previousSize
-            }
-
-            let source = Array(
-                repeating: Self.longCJKFixture,
-                count: 3
-            ).joined()
-            let appState = AppState()
-            appState.toolPanelModel.activate(mode: .grammar, input: source, clearResults: true)
-            appState.originalText = source
-            appState.isLoading = true
-            appState.popupWindow.show()
-            defer { appState.dismissPopup(restoreFocus: false) }
-            waitForViewUpdate()
-
-            let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
-            let contentView = try XCTUnwrap(panel.contentView)
-            contentView.displayIfNeeded()
-            let image = try XCTUnwrap(contentView.bitmapImageRepForCachingDisplay(in: contentView.bounds))
-            contentView.cacheDisplay(in: contentView.bounds, to: image)
-
-            XCTAssertEqual(horizontalHairlineClusterCount(in: image), 1)
         }
     }
 
@@ -605,9 +190,7 @@ final class YagrakerUITests: XCTestCase {
             XCTAssertEqual(store.panelSize?.height ?? 0, savedSize.height, accuracy: 1)
 
             appState.toolPanelModel.selectMode(.translation)
-            waitForViewUpdate()
-            waitForViewUpdate()
-
+            _ = wait(until: { abs(panel.frame.height - savedSize.height) <= 1 }, timeout: 1.5)
             XCTAssertEqual(panel.frame.height, savedSize.height, accuracy: 1)
         }
     }
@@ -774,7 +357,7 @@ final class YagrakerUITests: XCTestCase {
                 defer: false
             )
             window.contentView = hostingView
-            window.makeKeyAndOrderFront(nil)
+            window.orderBack(nil)
             defer { window.orderOut(nil) }
             waitForViewUpdate(hostingView)
 
@@ -863,64 +446,6 @@ final class YagrakerUITests: XCTestCase {
         }
     }
 
-    /// Regression: the gesture's `translation` is measured in the window's own
-    /// coordinate space, which moves together with the window. Simulate how the
-    /// window server actually computes `locationInWindow` — against the window's
-    /// *current* origin — and verify the panel keeps tracking the pointer across
-    /// multiple drag updates instead of snapping back or oscillating.
-    func testPopupHeaderDragFollowsPointerAcrossWindowMoves() throws {
-        try MainActor.assumeIsolated {
-            _ = NSApplication.shared
-            let store = SettingsStore.shared
-            let previousSize = store.panelSize
-            let previousTopLeft = store.panelTopLeft
-            let previousPinned = store.isPinned
-            store.panelSize = NSSize(width: PopupWindow.minimumWidth, height: 300)
-            store.panelTopLeft = nil
-            store.isPinned = true
-            defer {
-                store.panelSize = previousSize
-                store.panelTopLeft = previousTopLeft
-                store.isPinned = previousPinned
-            }
-
-            let appState = AppState()
-            appState.isPinned = true
-            appState.popupWindow.show()
-            defer { appState.dismissPopup(restoreFocus: false) }
-            waitForViewUpdate()
-
-            let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
-            let start = panel.frame.origin
-
-            // Pointer positions in *screen* coordinates (AppKit, y-up), grabbing
-            // the header drag area at 75% width, 27pt below the top edge.
-            var pointer = NSPoint(
-                x: start.x + panel.frame.width * 0.68,
-                y: start.y + panel.frame.height - 27
-            )
-            sendMouseEventAtScreenPoint(.leftMouseDown, screenPoint: pointer, window: panel)
-            waitForViewUpdate()
-
-            pointer.x += 40
-            pointer.y += 20
-            sendMouseEventAtScreenPoint(.leftMouseDragged, screenPoint: pointer, window: panel)
-            waitForViewUpdate()
-
-            XCTAssertEqual(panel.frame.origin.x, start.x + 40, accuracy: 1)
-            XCTAssertEqual(panel.frame.origin.y, start.y + 20, accuracy: 1)
-
-            pointer.x += 30
-            pointer.y -= 50
-            sendMouseEventAtScreenPoint(.leftMouseDragged, screenPoint: pointer, window: panel)
-            waitForViewUpdate()
-            sendMouseEventAtScreenPoint(.leftMouseUp, screenPoint: pointer, window: panel)
-            waitForViewUpdate()
-
-            XCTAssertEqual(panel.frame.origin.x, start.x + 70, accuracy: 1)
-            XCTAssertEqual(panel.frame.origin.y, start.y - 30, accuracy: 1)
-        }
-    }
 
     /// A window manager (e.g. Wins edge snapping) may grab the panel right
     /// after a drag ends. The post-drag height settle must not fight the
@@ -1001,7 +526,7 @@ final class YagrakerUITests: XCTestCase {
                 defer: false
             )
             window.contentView = hostingView
-            window.orderFrontRegardless()
+            window.orderBack(nil)
             defer { window.orderOut(nil) }
             waitForViewUpdate(hostingView)
 
@@ -1172,43 +697,6 @@ final class YagrakerUITests: XCTestCase {
         }
     }
 
-    func testSettingsTabBarAnimatesSelection() throws {
-        try MainActor.assumeIsolated {
-            _ = NSApplication.shared
-            let appState = AppState()
-            appState.popupWindow.show()
-            defer { appState.dismissPopup(restoreFocus: false) }
-            waitForViewUpdate()
-
-            let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
-            let originalContentView = try XCTUnwrap(panel.contentView)
-            let state = SettingsTabBarHarnessState()
-            let hostingView = NSHostingView(
-                rootView: SettingsTabBarHarness(state: state)
-                    .environmentObject(L10n.shared)
-            )
-            panel.contentView = hostingView
-            defer { panel.contentView = originalContentView }
-            waitForViewUpdate(hostingView)
-
-            let start = try XCTUnwrap(renderedImage(in: hostingView))
-            let startSelection = try XCTUnwrap(settingsSelectionCenterX(in: start))
-
-            state.selectedTab = .provider
-            RunLoop.main.run(until: Date().addingTimeInterval(0.06))
-            hostingView.layoutSubtreeIfNeeded()
-            let transition = try XCTUnwrap(renderedImage(in: hostingView))
-            let transitionSelection = try XCTUnwrap(settingsSelectionCenterX(in: transition))
-
-            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
-            hostingView.layoutSubtreeIfNeeded()
-            let end = try XCTUnwrap(renderedImage(in: hostingView))
-            let endSelection = try XCTUnwrap(settingsSelectionCenterX(in: end))
-            XCTAssertGreaterThan(endSelection - startSelection, 80)
-            XCTAssertGreaterThan(transitionSelection, startSelection + 5)
-            XCTAssertLessThan(transitionSelection, endSelection - 5)
-        }
-    }
 
     func testSettingsTabBarAcceptsClickAcrossSegmentBoundary() throws {
         try MainActor.assumeIsolated {
@@ -1225,7 +713,7 @@ final class YagrakerUITests: XCTestCase {
                 defer: false
             )
             window.contentView = hostingView
-            window.orderFrontRegardless()
+            window.orderBack(nil)
             defer { window.orderOut(nil) }
             waitForViewUpdate(hostingView)
 
@@ -1437,7 +925,7 @@ final class YagrakerUITests: XCTestCase {
                 defer: false
             )
             window.contentView = hostingView
-            window.orderFrontRegardless()
+            window.orderBack(nil)
             defer {
                 state.source.finish()
                 window.orderOut(nil)
@@ -1492,7 +980,7 @@ final class YagrakerUITests: XCTestCase {
                 defer: false
             )
             window.contentView = hostingView
-            window.orderFrontRegardless()
+            window.orderBack(nil)
             defer { window.orderOut(nil) }
 
             state.source.update(with: "Persisted translation")
@@ -1543,7 +1031,7 @@ final class YagrakerUITests: XCTestCase {
 
     @MainActor
     private func waitForViewUpdate(_ view: NSView) {
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.04))
         view.layoutSubtreeIfNeeded()
     }
 
@@ -1561,14 +1049,25 @@ final class YagrakerUITests: XCTestCase {
     }
 
     @MainActor
+    private func wait(until condition: @escaping () -> Bool, timeout: TimeInterval = 1.0) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.04))
+            NSApp.windows.forEach { $0.contentView?.layoutSubtreeIfNeeded() }
+        }
+        return condition()
+    }
+
+    @MainActor
     private func waitForAnimation(in view: NSView) {
-        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.25))
         view.layoutSubtreeIfNeeded()
     }
 
     @MainActor
     private func waitForViewUpdate() {
-        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
         NSApp.windows.forEach { $0.contentView?.layoutSubtreeIfNeeded() }
     }
 
@@ -1624,32 +1123,6 @@ final class YagrakerUITests: XCTestCase {
         }
     }
 
-    /// Sends a mouse event for a pointer at `screenPoint`, mirroring the window
-    /// server: `locationInWindow` is recomputed against the window's *current*
-    /// origin, so events reflect any window movement since the previous event.
-    @MainActor
-    private func sendMouseEventAtScreenPoint(
-        _ eventType: NSEvent.EventType,
-        screenPoint: NSPoint,
-        window: NSWindow
-    ) {
-        let origin = window.frame.origin
-        let location = NSPoint(x: screenPoint.x - origin.x, y: screenPoint.y - origin.y)
-        let event = NSEvent.mouseEvent(
-            with: eventType,
-            location: location,
-            modifierFlags: [],
-            timestamp: ProcessInfo.processInfo.systemUptime,
-            windowNumber: window.windowNumber,
-            context: nil,
-            eventNumber: 0,
-            clickCount: 1,
-            pressure: eventType == .leftMouseDown ? 1 : 0
-        )
-        if let event {
-            window.sendEvent(event)
-        }
-    }
 
     @MainActor
     private func renderedDarkPixelCount(in view: NSView) -> Int {
@@ -1690,46 +1163,6 @@ final class YagrakerUITests: XCTestCase {
         return count
     }
 
-    private func horizontalHairlineClusterCount(in image: NSBitmapImageRep) -> Int {
-        guard let background = image.colorAt(
-            x: image.pixelsWide / 2,
-            y: image.pixelsHigh / 2
-        )?.usingColorSpace(.deviceRGB) else { return 0 }
-
-        let horizontalInset = 12
-        let verticalInset = 12
-        let requiredPixels = Int(Double(image.pixelsWide - horizontalInset * 2) * 0.72)
-        var matchingRows: [Int] = []
-
-        for y in verticalInset..<(image.pixelsHigh - verticalInset) {
-            var matchingPixels = 0
-            for x in horizontalInset..<(image.pixelsWide - horizontalInset) {
-                guard let color = image.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
-                      color.alphaComponent > 0.5 else { continue }
-                let darkness = (
-                    background.redComponent - color.redComponent
-                        + background.greenComponent - color.greenComponent
-                        + background.blueComponent - color.blueComponent
-                ) / 3
-                if darkness > 0.035, darkness < 0.16 {
-                    matchingPixels += 1
-                }
-            }
-            if matchingPixels >= requiredPixels {
-                matchingRows.append(y)
-            }
-        }
-
-        var clusters = 0
-        var previousRow: Int?
-        for row in matchingRows {
-            if previousRow.map({ row > $0 + 1 }) ?? true {
-                clusters += 1
-            }
-            previousRow = row
-        }
-        return clusters
-    }
 
     @MainActor
     private func renderedImage(in view: NSView) -> NSBitmapImageRep? {

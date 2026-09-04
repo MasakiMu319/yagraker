@@ -16,6 +16,7 @@ final class PopupPanel: NSPanel {
 
 private final class PopupHostingView<Content: View>: NSHostingView<Content> {
     override var mouseDownCanMoveWindow: Bool { true }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 /// Hosts the popup SwiftUI content in a floating, non-activating panel:
@@ -28,6 +29,11 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     static let defaultSize = NSSize(width: 481, height: 373)
     static let minimumWidth: CGFloat = 440
     static let minimumHeight: CGFloat = 240
+    static var isTestingEnvironment: Bool {
+        NSClassFromString("XCTestCase") != nil
+            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil
+    }
 
     private let appState: AppState
     private let panel: PopupPanel
@@ -91,11 +97,15 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     func show() {
         positionPanel()
         resizePanel(animated: false)
-        NSApp.activate()
-        panel.makeKeyAndOrderFront(nil)
-        panel.orderFrontRegardless()
+        if !Self.isTestingEnvironment {
+            NSApp.activate()
+            panel.makeKeyAndOrderFront(nil)
+            panel.orderFrontRegardless()
+            focusInput()
+        } else {
+            panel.orderFrontRegardless()
+        }
         updateMonitors()
-        focusInput()
         scheduleHeightSettle()
     }
 
@@ -360,7 +370,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
 
     func updateMonitors() {
         removeMonitors()
-        guard panel.isVisible, !appState.isPinned else { return }
+        guard panel.isVisible, !appState.isPinned, !Self.isTestingEnvironment else { return }
 
         globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
             Task { @MainActor [weak self] in

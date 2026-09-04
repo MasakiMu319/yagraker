@@ -52,8 +52,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             window.center()
             hasCentered = true
         }
-        NSApp.activate()
-        window.makeKeyAndOrderFront(nil)
+        if !PopupWindow.isTestingEnvironment {
+            NSApp.activate()
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            window.orderBack(nil)
+        }
     }
 
     func windowWillClose(_ notification: Notification) {

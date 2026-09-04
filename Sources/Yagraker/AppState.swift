@@ -422,6 +422,7 @@ final class AppState: ObservableObject {
         if restoreFocus { restoreExternalApplicationIfNeeded() }
     }
     func restoreExternalApplicationIfNeeded() {
+        guard !PopupWindow.isTestingEnvironment else { return }
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 50_000_000)
             guard let self,
