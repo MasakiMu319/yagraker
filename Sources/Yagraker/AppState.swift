@@ -133,24 +133,7 @@ final class AppState: ObservableObject {
         SelectionReader.promptForAccessibilityIfNeeded()
         let accessibilitySelection = SelectionReader.readSelectedText(for: sourceApplication)
         Task {
-            let captured: String?
-            let hasDirectSelection: Bool
-            if let accessibilitySelection,
-               !accessibilitySelection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                captured = accessibilitySelection
-                hasDirectSelection = true
-            } else if let simulated = await TextCapture.captureSelectedTextPreservingClipboard(targetApp: sourceApplication),
-                      !simulated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                captured = simulated
-                hasDirectSelection = true
-            } else if let clipboard = TextCapture.clipboardText,
-                      !clipboard.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                captured = clipboard
-                hasDirectSelection = false
-            } else {
-                captured = nil
-                hasDirectSelection = false
-            }
+            let (captured, hasDirectSelection) = await captureSelection(from: sourceApplication, accessibility: accessibilitySelection)
 
             guard let text = captured, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 self.showNoTextError(for: .grammar)
@@ -174,19 +157,7 @@ final class AppState: ObservableObject {
         SelectionReader.promptForAccessibilityIfNeeded()
         let accessibilitySelection = SelectionReader.readSelectedText(for: sourceApplication)
         Task {
-            let captured: String?
-            if let accessibilitySelection,
-               !accessibilitySelection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                captured = accessibilitySelection
-            } else if let simulated = await TextCapture.captureSelectedTextPreservingClipboard(targetApp: sourceApplication),
-                      !simulated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                captured = simulated
-            } else if let clipboard = TextCapture.clipboardText,
-                      !clipboard.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                captured = clipboard
-            } else {
-                captured = nil
-            }
+            let (captured, _) = await captureSelection(from: sourceApplication, accessibility: accessibilitySelection)
 
             guard let text = captured, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 self.showNoTextError(for: .translation)
@@ -198,6 +169,22 @@ final class AppState: ObservableObject {
             }
             self.startTranslation(text: text)
         }
+    }
+
+    private func captureSelection(from application: NSRunningApplication?, accessibility: String?) async -> (String?, Bool) {
+        if let accessibility,
+           !accessibility.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return (accessibility, true)
+        }
+        if let simulated = await TextCapture.captureSelectedTextPreservingClipboard(targetApp: application),
+           !simulated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return (simulated, true)
+        }
+        if let clipboard = TextCapture.clipboardText,
+           !clipboard.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return (clipboard, false)
+        }
+        return (nil, false)
     }
 
     /// Open the panel in a mode without running anything.

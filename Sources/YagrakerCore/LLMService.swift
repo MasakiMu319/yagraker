@@ -273,6 +273,26 @@ extension URLSession {
     }
 }
 
+func mapSSEPayloads<T: Sendable>(
+    _ payloads: AsyncThrowingStream<String, Error>,
+    transform: @escaping @Sendable (Data) -> T?
+) -> AsyncThrowingStream<T, Error> {
+    AsyncThrowingStream { continuation in
+        let task = Task {
+            do {
+                for try await payload in payloads {
+                    guard let data = payload.data(using: .utf8), let value = transform(data) else { continue }
+                    continuation.yield(value)
+                }
+                continuation.finish()
+            } catch {
+                continuation.finish(throwing: error)
+            }
+        }
+        continuation.onTermination = { _ in task.cancel() }
+    }
+}
+
 // MARK: - OpenAI-compatible base
 
 /// Shared implementation for DeepSeek / MiMo / Custom providers.
@@ -406,21 +426,9 @@ public class OpenAICompatibleService: LLMServicing, @unchecked Sendable {
             let body = messagesBody(system: systemPrompt, user: Prompts.userPrompt(task: task, text: text), model: model, stream: true, jsonMode: false)
             let request = try makeRequest(body: body, apiKey: apiKey, timeout: 300)
             let payloads = session.sseDataLines(for: request)
-            return AsyncThrowingStream { continuation in
-                let task = Task {
-                    do {
-                        for try await payload in payloads {
-                            guard let data = payload.data(using: .utf8) else { continue }
-                            if let delta = LLMParsing.openAIStreamDelta(from: data), !delta.isEmpty {
-                                continuation.yield(delta)
-                            }
-                        }
-                        continuation.finish()
-                    } catch {
-                        continuation.finish(throwing: error)
-                    }
-                }
-                continuation.onTermination = { _ in task.cancel() }
+            return mapSSEPayloads(payloads) { data in
+                guard let delta = LLMParsing.openAIStreamDelta(from: data), !delta.isEmpty else { return nil }
+                return delta
             }
         } catch {
             return AsyncThrowingStream { $0.finish(throwing: error) }

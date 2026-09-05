@@ -128,21 +128,8 @@ public final class GeminiService: LLMServicing, @unchecked Sendable {
                 body: body, timeout: 300
             )
             let payloads = session.sseDataLines(for: request)
-            return AsyncThrowingStream { continuation in
-                let task = Task {
-                    do {
-                        for try await payload in payloads {
-                            guard let data = payload.data(using: .utf8) else { continue }
-                            if let delta = LLMParsing.geminiStreamDelta(from: data) {
-                                continuation.yield(delta)
-                            }
-                        }
-                        continuation.finish()
-                    } catch {
-                        continuation.finish(throwing: error)
-                    }
-                }
-                continuation.onTermination = { _ in task.cancel() }
+            return mapSSEPayloads(payloads) { data in
+                LLMParsing.geminiStreamDelta(from: data)
             }
         } catch {
             return AsyncThrowingStream { $0.finish(throwing: error) }
