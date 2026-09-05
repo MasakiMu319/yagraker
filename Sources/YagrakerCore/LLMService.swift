@@ -45,7 +45,7 @@ public enum LLMParsing {
     }
 
     /// Extract the assistant text from an OpenAI chat-completions envelope.
-    public static func openAIMessageContent(from data: Data, provider: String) throws -> String {
+    public static func openAIMessageContent(from data: Data) throws -> String {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw LLMError.invalidResponse
         }
@@ -62,7 +62,7 @@ public enum LLMParsing {
     }
 
     /// Extract model identifiers from an OpenAI-compatible `/models` envelope.
-    public static func openAIModels(from data: Data, provider: String) throws -> [LLMModel] {
+    public static func openAIModels(from data: Data) throws -> [LLMModel] {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw LLMError.invalidResponse
         }
@@ -199,7 +199,7 @@ public enum LLMParsing {
     }
 
     /// Lenient JSON decode: JSON5-tolerant, fence-stripping, prose-trimming.
-    public static func decode<T: Decodable>(_ type: T.Type, from text: String, label: String) throws -> T {
+    public static func decode<T: Decodable>(_ type: T.Type, from text: String) throws -> T {
         let cleaned = stripCodeFences(text)
         guard let data = cleaned.data(using: .utf8) else { throw LLMError.invalidResponse }
         let decoder = JSONDecoder()
@@ -348,7 +348,7 @@ public class OpenAICompatibleService: LLMServicing, @unchecked Sendable {
             }
             throw LLMError.apiError("HTTP \(http.statusCode)")
         }
-        return try LLMParsing.openAIMessageContent(from: data, provider: providerName)
+        return try LLMParsing.openAIMessageContent(from: data)
     }
 
     /// Streaming chat completion, accumulated for structured JSON responses.
@@ -411,7 +411,7 @@ public class OpenAICompatibleService: LLMServicing, @unchecked Sendable {
             let fallbackBody = messagesBody(system: systemPrompt, user: userPrompt, model: model, stream: false, jsonMode: true)
             content = try await postChatCompletion(body: fallbackBody, apiKey: apiKey, timeout: 300)
         }
-        return try LLMParsing.decode(CorrectionResult.self, from: content, label: "JSON")
+        return try LLMParsing.decode(CorrectionResult.self, from: content)
     }
 
     public func streamText(
@@ -456,7 +456,7 @@ public class OpenAICompatibleService: LLMServicing, @unchecked Sendable {
             }
             throw LLMError.apiError("HTTP \(http.statusCode)")
         }
-        return try LLMParsing.openAIModels(from: data, provider: providerName)
+        return try LLMParsing.openAIModels(from: data)
     }
 
     public func validate(apiKey: String, model: String) async throws -> String {

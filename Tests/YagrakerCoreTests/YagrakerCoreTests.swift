@@ -177,7 +177,7 @@ final class ParsingTests: XCTestCase {
           "tip": "注意单复数哦"
         }
         """
-        let result = try LLMParsing.decode(CorrectionResult.self, from: json, label: "test")
+        let result = try LLMParsing.decode(CorrectionResult.self, from: json)
         XCTAssertTrue(result.hasCorrections)
         XCTAssertEqual(result.corrections.count, 2)
         XCTAssertEqual(result.corrections[0].corrected, "These") // defaulted to the span
@@ -197,25 +197,25 @@ final class ParsingTests: XCTestCase {
           tip: "棒",
         }
         """
-        let result = try LLMParsing.decode(CorrectionResult.self, from: json5, label: "test")
+        let result = try LLMParsing.decode(CorrectionResult.self, from: json5)
         XCTAssertFalse(result.hasCorrections)
     }
 
     func testOpenAIEnvelope() throws {
         let data = #"{"choices":[{"message":{"content":"hello"}}]}"#.data(using: .utf8)!
-        XCTAssertEqual(try LLMParsing.openAIMessageContent(from: data, provider: "T"), "hello")
+        XCTAssertEqual(try LLMParsing.openAIMessageContent(from: data), "hello")
     }
 
     func testOpenAIErrorEnvelope() {
         let data = #"{"error":{"message":"bad key"}}"#.data(using: .utf8)!
-        XCTAssertThrowsError(try LLMParsing.openAIMessageContent(from: data, provider: "T")) { error in
+        XCTAssertThrowsError(try LLMParsing.openAIMessageContent(from: data)) { error in
             XCTAssertEqual(error as? LLMError, .apiError("bad key"))
         }
     }
 
     func testOpenAIModelListEnvelope() throws {
         let data = #"{"object":"list","data":[{"id":"z-model"},{"id":"a-model","name":"A model"}]}"#.data(using: .utf8)!
-        let models = try LLMParsing.openAIModels(from: data, provider: "T")
+        let models = try LLMParsing.openAIModels(from: data)
         XCTAssertEqual(models.map(\.id), ["z-model", "a-model"])
         XCTAssertEqual(models.last?.displayName, "A model")
     }

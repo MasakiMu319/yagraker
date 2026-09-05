@@ -110,7 +110,7 @@ public final class GeminiService: LLMServicing, @unchecked Sendable {
             )
             content = try await post(fallbackRequest)
         }
-        return try LLMParsing.decode(CorrectionResult.self, from: content, label: "JSON")
+        return try LLMParsing.decode(CorrectionResult.self, from: content)
     }
 
     public func streamText(
