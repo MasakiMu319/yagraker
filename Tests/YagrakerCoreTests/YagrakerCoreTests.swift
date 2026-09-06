@@ -160,6 +160,19 @@ final class SettingsStoreTests: XCTestCase {
 
 final class ParsingTests: XCTestCase {
 
+    func testSharedHTTPErrorMappingHandlesProviderEnvelopeVariants() throws {
+        let url = URL(string: "https://example.com")!
+        let openAI = HTTPURLResponse(url: url, statusCode: 401, httpVersion: nil, headerFields: nil)!
+        XCTAssertThrowsError(try LLMTransport.throwIfHTTPError(
+            data: #"{"error":{"message":"bad key"}}"#.data(using: .utf8)!, response: openAI
+        )) { XCTAssertEqual($0 as? LLMError, .apiError("bad key")) }
+
+        let qwen = HTTPURLResponse(url: url, statusCode: 429, httpVersion: nil, headerFields: nil)!
+        XCTAssertThrowsError(try LLMTransport.throwIfHTTPError(
+            data: #"{"message":"rate limited"}"#.data(using: .utf8)!, response: qwen
+        )) { XCTAssertEqual($0 as? LLMError, .apiError("rate limited")) }
+    }
+
     func testStripFences() {
         XCTAssertEqual(LLMParsing.stripCodeFences("```json\n{\"a\":1}\n```"), "{\"a\":1}")
         XCTAssertEqual(LLMParsing.stripCodeFences("Sure! Here is the JSON: {\"a\":1} hope it helps"), "{\"a\":1}")

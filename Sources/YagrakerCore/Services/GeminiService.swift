@@ -163,14 +163,7 @@ public final class GeminiService: LLMServicing, @unchecked Sendable {
             } catch {
                 throw LLMError.networkError(error.localizedDescription)
             }
-            if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
-                if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let error = root["error"] as? [String: Any],
-                   let message = error["message"] as? String {
-                    throw LLMError.apiError(message)
-                }
-                throw LLMError.apiError("HTTP \(http.statusCode)")
-            }
+            try LLMTransport.throwIfHTTPError(data: data, response: response)
 
             models.append(contentsOf: try LLMParsing.geminiModels(from: data))
             let root = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -223,14 +216,7 @@ public final class GeminiService: LLMServicing, @unchecked Sendable {
         } catch {
             throw LLMError.networkError(error.localizedDescription)
         }
-        if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
-            if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let error = root["error"] as? [String: Any],
-               let message = error["message"] as? String {
-                throw LLMError.apiError(message)
-            }
-            throw LLMError.apiError("HTTP \(http.statusCode)")
-        }
+        try LLMTransport.throwIfHTTPError(data: data, response: response)
         return try LLMParsing.geminiContent(from: data)
     }
 }

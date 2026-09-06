@@ -35,6 +35,19 @@ public enum LLMServiceFactory {
 // MARK: - Response parsing helpers
 
 public enum LLMParsing {
+    private struct OpenAIEnvelope: Decodable {
+        struct Choice: Decodable { struct Message: Decodable { let content: String? }; let message: Message?; let delta: Message? }
+        struct APIError: Decodable { let message: String? }
+        let choices: [Choice]?
+        let error: APIError?
+    }
+
+    private struct GeminiEnvelope: Decodable {
+        struct Candidate: Decodable { struct Content: Decodable { struct Part: Decodable { let text: String? }; let parts: [Part]? }; let content: Content? }
+        struct APIError: Decodable { let message: String? }
+        let candidates: [Candidate]?
+        let error: APIError?
+    }
 
     /// A page returned by Alibaba Cloud Model Studio's model catalog.
     struct QwenModelPage: Sendable {
@@ -46,18 +59,9 @@ public enum LLMParsing {
 
     /// Extract the assistant text from an OpenAI chat-completions envelope.
     public static func openAIMessageContent(from data: Data) throws -> String {
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw LLMError.invalidResponse
-        }
-        if let error = root["error"] as? [String: Any] {
-            let message = error["message"] as? String ?? String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw LLMError.apiError(message)
-        }
-        guard let choices = root["choices"] as? [[String: Any]],
-              let message = choices.first?["message"] as? [String: Any],
-              let content = message["content"] as? String else {
-            throw LLMError.invalidResponse
-        }
+        let envelope = try JSONDecoder().decode(OpenAIEnvelope.self, from: data)
+        if let error = envelope.error { throw LLMError.apiError(error.message ?? "Unknown error") }
+        guard let content = envelope.choices?.first?.message?.content else { throw LLMError.invalidResponse }
         return content
     }
 
@@ -133,19 +137,10 @@ public enum LLMParsing {
 
     /// Extract the model text from a Gemini generateContent envelope.
     public static func geminiContent(from data: Data) throws -> String {
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw LLMError.invalidResponse
-        }
-        if let error = root["error"] as? [String: Any] {
-            let message = error["message"] as? String ?? "Unknown Gemini error"
-            throw LLMError.apiError(message)
-        }
-        guard let candidates = root["candidates"] as? [[String: Any]],
-              let content = candidates.first?["content"] as? [String: Any],
-              let parts = content["parts"] as? [[String: Any]] else {
-            throw LLMError.invalidResponse
-        }
-        return parts.compactMap { $0["text"] as? String }.joined()
+        let envelope = try JSONDecoder().decode(GeminiEnvelope.self, from: data)
+        if let error = envelope.error { throw LLMError.apiError(error.message ?? "Unknown Gemini error") }
+        guard let parts = envelope.candidates?.first?.content?.parts else { throw LLMError.invalidResponse }
+        return parts.compactMap(\.text).joined()
     }
 
     /// Extract text-generation models from a Gemini `models.list` response.
@@ -227,6 +222,22 @@ public enum LLMParsing {
               let parts = content["parts"] as? [[String: Any]] else { return nil }
         let text = parts.compactMap { $0["text"] as? String }.joined()
         return text.isEmpty ? nil : text
+    }
+}
+
+enum LLMTransport {
+    static func throwIfHTTPError(data: Data, response: URLResponse) throws {
+        guard let http = response as? HTTPURLResponse, http.statusCode >= 400 else { return }
+        if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let error = root["error"] as? [String: Any],
+           let message = error["message"] as? String {
+            throw LLMError.apiError(message)
+        }
+        if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let message = root["message"] as? String, !message.isEmpty {
+            throw LLMError.apiError(message)
+        }
+        throw LLMError.apiError("HTTP \(http.statusCode)")
     }
 }
 
@@ -340,14 +351,7 @@ public class OpenAICompatibleService: LLMServicing, @unchecked Sendable {
         } catch {
             throw LLMError.networkError(error.localizedDescription)
         }
-        if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
-            if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let error = root["error"] as? [String: Any],
-               let message = error["message"] as? String {
-                throw LLMError.apiError(message)
-            }
-            throw LLMError.apiError("HTTP \(http.statusCode)")
-        }
+        try LLMTransport.throwIfHTTPError(data: data, response: response)
         return try LLMParsing.openAIMessageContent(from: data)
     }
 
@@ -448,14 +452,7 @@ public class OpenAICompatibleService: LLMServicing, @unchecked Sendable {
         } catch {
             throw LLMError.networkError(error.localizedDescription)
         }
-        if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
-            if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let error = root["error"] as? [String: Any],
-               let message = error["message"] as? String {
-                throw LLMError.apiError(message)
-            }
-            throw LLMError.apiError("HTTP \(http.statusCode)")
-        }
+        try LLMTransport.throwIfHTTPError(data: data, response: response)
         return try LLMParsing.openAIModels(from: data)
     }
 

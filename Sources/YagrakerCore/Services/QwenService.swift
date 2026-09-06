@@ -138,14 +138,7 @@ public final class QwenService: OpenAICompatibleService, @unchecked Sendable {
             } catch {
                 throw LLMError.networkError(error.localizedDescription)
             }
-            if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
-                if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let message = (root["message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !message.isEmpty {
-                    throw LLMError.apiError(message)
-                }
-                throw LLMError.apiError("HTTP \(http.statusCode)")
-            }
+            try LLMTransport.throwIfHTTPError(data: data, response: response)
 
             let page = try LLMParsing.qwenModelPage(from: data)
             collected.append(contentsOf: page.models)
