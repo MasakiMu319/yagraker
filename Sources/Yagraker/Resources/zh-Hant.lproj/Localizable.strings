@@ -60,6 +60,10 @@
 "settings.provider.baseURL" = "Base URL";
 "settings.provider.baseURLHelp" = "端點須支援 POST {base}/chat/completions。請使用 HTTPS；明文 HTTP 僅限回環或私人網路端點。";
 "settings.provider.apiKey" = "API Key";
+"settings.provider.showAPIKey" = "顯示 API Key";
+"settings.provider.hideAPIKey" = "隱藏 API Key";
+"settings.provider.visible" = "已顯示";
+"settings.provider.hidden" = "已隱藏";
 "settings.provider.model" = "模型";
 "settings.provider.translationModel" = "翻譯模型";
 "settings.provider.deepReadModel" = "精讀模型";

@@ -60,6 +60,10 @@
 "settings.provider.baseURL" = "Base URL";
 "settings.provider.baseURLHelp" = "Must accept POST {base}/chat/completions. Use HTTPS; plain HTTP is limited to loopback or private-network endpoints.";
 "settings.provider.apiKey" = "API Key";
+"settings.provider.showAPIKey" = "Show API Key";
+"settings.provider.hideAPIKey" = "Hide API Key";
+"settings.provider.visible" = "Visible";
+"settings.provider.hidden" = "Hidden";
 "settings.provider.model" = "Model";
 "settings.provider.translationModel" = "Translation model";
 "settings.provider.deepReadModel" = "Deep Read model";

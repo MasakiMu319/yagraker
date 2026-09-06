@@ -137,6 +137,7 @@ struct SettingsView: View {
     // Provider editor state is loaded only when Settings opens.
     @State private var routeProviders: [LLMTask: LLMProviderKind]
     @State private var credentialProvider: LLMProviderKind
+    @State private var isAPIKeyVisible = false
     @State private var providerDrafts: [LLMProviderKind: ProviderDraft]
     @State private var originalAPIKeys: [LLMProviderKind: String]
     @State private var modelCatalogs: [LLMProviderKind: ModelCatalogState] = [:]
@@ -404,7 +405,10 @@ struct SettingsView: View {
                     isSelected: { $0 == credentialProvider },
                     width: 176,
                     accessibilityLabel: l10n.t("settings.provider.editProvider"),
-                    onSelect: { credentialProvider = $0 }
+                    onSelect: {
+                        credentialProvider = $0
+                        isAPIKeyVisible = false
+                    }
                 )
             }
             .padding(12)
@@ -463,14 +467,36 @@ struct SettingsView: View {
             }
 
             providerField(l10n.t("settings.provider.apiKey")) {
-                SecureField(
-                    "••••••••••••••••",
-                    text: draftBinding(credentialProvider, keyPath: \.apiKey)
-                )
-                .textFieldStyle(.roundedBorder)
-                .accessibilityLabel(l10n.t("settings.provider.apiKey"))
-                .onSubmit {
-                    refreshModels(for: credentialProvider)
+                HStack(spacing: 6) {
+                    Group {
+                        if isAPIKeyVisible {
+                            TextField(
+                                "••••••••••••••••",
+                                text: draftBinding(credentialProvider, keyPath: \.apiKey)
+                            )
+                        } else {
+                            SecureField(
+                                "••••••••••••••••",
+                                text: draftBinding(credentialProvider, keyPath: \.apiKey)
+                            )
+                        }
+                    }
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel(l10n.t("settings.provider.apiKey"))
+                    .onSubmit {
+                        refreshModels(for: credentialProvider)
+                    }
+
+                    Button {
+                        isAPIKeyVisible.toggle()
+                    } label: {
+                        Image(systemName: isAPIKeyVisible ? "eye.slash" : "eye")
+                            .frame(width: 24, height: 24)
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(Theme.inkSecondary)
+                    .accessibilityLabel(l10n.t(isAPIKeyVisible ? "settings.provider.hideAPIKey" : "settings.provider.showAPIKey"))
+                    .accessibilityValue(l10n.t(isAPIKeyVisible ? "settings.provider.visible" : "settings.provider.hidden"))
                 }
             }
             providerDivider
