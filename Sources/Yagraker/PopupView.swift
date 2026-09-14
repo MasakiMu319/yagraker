@@ -1,5 +1,5 @@
 import SwiftUI
-import SwiftStreamingMarkdown
+import MarkdownView
 import YagrakerCore
 
 /// The popup panel content: mode/provider header, input area, result area,
@@ -62,13 +62,15 @@ struct PopupView: View {
                 .strokeBorder(Theme.panelBorder, lineWidth: 0.8)
         )
         .onChange(of: toolPanel.output) { _, _ in
-            if appState.popupWindow.isVisible {
+            if appState.popupWindow.isVisible, !toolPanel.isStreaming {
+                // Resize only once streaming ends. During streaming the outer
+                // ScrollView grows its document while the window frame stays put.
                 appState.popupWindow.scheduleHeightSettle()
             }
         }
         .onChange(of: toolPanel.generationPhase) { _, _ in
             if appState.popupWindow.isVisible {
-                appState.popupWindow.scheduleHeightSettle()
+                appState.popupWindow.scheduleHeightSettle(animated: !toolPanel.isStreaming)
             }
         }
     }
@@ -541,16 +543,18 @@ struct PopupView: View {
                 }
                 .padding(.bottom, 2)
 
-                if toolPanel.generationPhase == .done {
-                    MarkdownView(
-                        text: toolPanel.output,
-                        config: markdownRenderConfig.withShouldAnimateText(value: false)
-                    )
+                StreamingMarkdownView(source: toolPanel.streamSource)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-                } else {
-                    StreamingMarkdownView(source: toolPanel.streamSource, config: markdownRenderConfig)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background {
+                if TranslationLayoutDiagnostics.isEnabled {
+                    TranslationLayoutProbe(
+                        streamID: toolPanel.streamSource.id,
+                        outputUTF16Count: toolPanel.output.utf16.count,
+                        isStreaming: toolPanel.isStreaming
+                    )
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
                 }
             }
         case .failed(let message):
@@ -570,28 +574,6 @@ struct PopupView: View {
     }
 
     // MARK: Errors
-
-    private var markdownRenderConfig: MarkdownRenderConfig {
-        let normal = NSFont.systemFont(ofSize: 13.5)
-        let bold = NSFont.systemFont(ofSize: 13.5, weight: .semibold)
-        let fonts = TextFonts(
-            normal: normal,
-            italic: NSFontManager.shared.convert(normal, toHaveTrait: .italicFontMask),
-            bold: bold,
-            boldItalic: NSFontManager.shared.convert(bold, toHaveTrait: .italicFontMask),
-            preferredLetterSpacing: nil,
-            preferredLineHeight: 21
-        )
-        let textStyle = MarkdownRenderConfig.MarkdownTextStyle(
-            textFonts: fonts,
-            textColor: Theme.ink
-        )
-        return .default
-            .withShouldAnimateText(value: !reduceMotion)
-            .withParagraphStyle(value: textStyle)
-            .withBlockQuoteStyle(value: textStyle)
-            .withBlockSpacing(value: 12)
-    }
 
     private func errorView(_ message: String, retry: (() -> Void)?) -> some View {
         VStack(alignment: .leading, spacing: 10) {

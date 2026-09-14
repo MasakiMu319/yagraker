@@ -287,7 +287,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     // MARK: Sizing
 
     /// Debounced relayout — content updates arrive in bursts while streaming.
-    func scheduleHeightSettle() {
+    func scheduleHeightSettle(animated: Bool = true) {
         heightSettleTask?.cancel()
         guard !isUserDragging else { return }
         heightSettleTask = Task { [weak self] in
@@ -300,7 +300,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
                !Self.framesMatch(self.panel.frame, anchor) {
                 return
             }
-            self.resizePanel(animated: true)
+            self.resizePanel(animated: animated)
         }
     }
 

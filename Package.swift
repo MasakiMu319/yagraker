@@ -11,7 +11,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.4"),
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.0.0"),
-        .package(url: "https://github.com/microsoft/SwiftStreamingMarkdown", revision: "95bb755a9b23a1aea8682b9ebc912cb72b176c95"),
+        .package(url: "https://github.com/Lakr233/MarkdownView", from: "4.1.0"),
     ],
     targets: [
         // Pure logic: models, prompts, LLM services, persistence. Unit-testable.
@@ -26,7 +26,8 @@ let package = Package(
                 "YagrakerCore",
                 .product(name: "Sparkle", package: "Sparkle"),
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
-                .product(name: "SwiftStreamingMarkdown", package: "SwiftStreamingMarkdown"),
+                .product(name: "MarkdownView", package: "MarkdownView"),
+                .product(name: "MarkdownParser", package: "MarkdownView"),
             ],
             path: "Sources/Yagraker",
             resources: [.process("Resources")]

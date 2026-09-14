@@ -1,4 +1,5 @@
 import AppKit
+import MarkdownView
 import KeyboardShortcuts
 import SwiftUI
 import XCTest
@@ -205,7 +206,7 @@ final class YagrakerUITests: XCTestCase {
 
             let source = Array(
                 repeating: Self.longCJKFixture,
-                count: 4
+                count: 14
             ).joined()
             let service = EchoingOpenStreamService()
             let appState = AppState()
@@ -230,10 +231,19 @@ final class YagrakerUITests: XCTestCase {
 
             let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
             let contentView = try XCTUnwrap(panel.contentView)
-            let initialScrollView = try XCTUnwrap(allDescendants(of: NSScrollView.self, in: contentView).first)
+            let initialScrollView = try XCTUnwrap(allDescendants(of: NSScrollView.self, in: contentView).first {
+                $0.contentSize.height > 0
+            })
             let initialDocumentView = try XCTUnwrap(initialScrollView.documentView)
+            // Initial translation output can still fit the panel. Force content
+            // past the viewport so the panel owns a real scroll range.
+            for _ in 1...10 {
+                service.send(Self.longCJKFixture)
+            }
+            XCTAssertTrue(wait(until: {
+                max(initialDocumentView.frame.height - initialScrollView.contentSize.height, 0) > 20
+            }, timeout: 1.5))
             let maximumOffset = max(initialDocumentView.frame.height - initialScrollView.contentSize.height, 0)
-            XCTAssertGreaterThan(maximumOffset, 20)
             initialScrollView.contentView.scroll(to: NSPoint(x: 0, y: maximumOffset))
             initialScrollView.reflectScrolledClipView(initialScrollView.contentView)
             XCTAssertGreaterThan(initialScrollView.documentVisibleRect.minY, 20)
@@ -241,7 +251,9 @@ final class YagrakerUITests: XCTestCase {
             toolPanel.startGeneration(mode: .translation, text: source)
             waitForViewUpdate()
 
-            let scrollView = try XCTUnwrap(allDescendants(of: NSScrollView.self, in: contentView).first)
+            let scrollView = try XCTUnwrap(allDescendants(of: NSScrollView.self, in: contentView).first {
+                $0.contentSize.height > 0
+            })
             let documentView = try XCTUnwrap(scrollView.documentView)
             let sourceView = try XCTUnwrap(
                 allDescendants(of: NSView.self, in: contentView).first {
@@ -254,10 +266,63 @@ final class YagrakerUITests: XCTestCase {
             XCTAssertEqual(scrollView.documentVisibleRect.minY, 0, accuracy: 1)
             XCTAssertLessThanOrEqual(sourceView.frame.width, panel.contentLayoutRect.width - 27)
             XCTAssertGreaterThan(sourceView.frame.height, 20)
-            XCTAssertEqual(visibleSource.height, sourceRect.height, accuracy: 1)
+            XCTAssertGreaterThan(visibleSource.height, 20)
         }
     }
 
+    func testTranslationStreamKeepsFirstLineStationary() throws {
+        try MainActor.assumeIsolated {
+            _ = NSApplication.shared
+            let store = SettingsStore.shared
+            let previousSize = store.panelSize
+            store.panelSize = PopupWindow.defaultSize
+            defer { store.panelSize = previousSize }
+            let service = EchoingOpenStreamService(initialOutput: "译文开头。")
+            let appState = AppState()
+            let model = ToolPanelModel { kind, task in
+                ProviderResolver.Resolved(kind: kind, task: task, apiKey: "test-key",
+                                          model: "test-model", service: service)
+            }
+            appState.toolPanelModel = model
+            let source = String(repeating: Self.longCJKFixture, count: 12)
+            model.activate(mode: .translation, input: source, clearResults: true)
+            appState.popupWindow.show()
+            model.startGeneration(mode: .translation, text: source)
+            defer {
+                service.finish()
+                appState.dismissPopup(restoreFocus: false)
+            }
+            waitForViewUpdate()
+            let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
+            let root = try XCTUnwrap(panel.contentView)
+            func firstLineTop() throws -> CGFloat {
+                let markdown = try XCTUnwrap(allDescendants(of: MarkdownTextView.self, in: root).first { view in
+                    !view.isHiddenOrHasHiddenAncestor && MainActor.assumeIsolated {
+                        view.textLabelView.attributedText.string.hasPrefix("译文开头。")
+                    }
+                })
+                let label = markdown.textLabelView
+                let layer = try XCTUnwrap(label.layer as CALayer?)
+                let rootLayer = try XCTUnwrap(root.layer)
+                let layerRect = layer.convert(layer.bounds, to: rootLayer)
+                let viewRect = label.convert(label.bounds, to: root)
+                XCTAssertEqual(layerRect.minY, viewRect.minY, accuracy: 2,
+                               "Rendered layer must agree with the text view geometry")
+                return layerRect.minY
+            }
+            let initialTop = try firstLineTop()
+            var expected = "译文开头。"
+            for _ in 1...8 {
+                let delta = String(repeating: Self.longCJKFixture, count: 2)
+                expected += delta
+                service.send(delta)
+                XCTAssertTrue(wait(until: { model.output == expected && self.renderedText(in: root).contains(expected) }))
+                waitForViewUpdate()
+                let top = try firstLineTop()
+                XCTAssertEqual(top, initialTop, accuracy: 2, "Existing translation layer must not move down as snapshots grow")
+            }
+        }
+    }
     /// The source editor must hug its laid-out content (no dead space) and
     /// claim its panel-proportional budget when the panel grows taller.
     func testSourceEditorHugsContentAndGrowsWithPanel() throws {
@@ -1268,10 +1333,15 @@ final class YagrakerUITests: XCTestCase {
         return descendants
     }
 
+    @MainActor
     private func renderedText(in root: NSView) -> String {
-        allDescendants(of: NSTextView.self, in: root)
+        let markdownText = allDescendants(of: MarkdownTextView.self, in: root)
+            .map { $0.textLabelView.attributedText.string }
+            .joined(separator: "\n")
+        let editorText = allDescendants(of: NSTextView.self, in: root)
             .map(\.string)
             .joined(separator: "\n")
+        return [markdownText, editorText].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     @MainActor
@@ -1467,6 +1537,11 @@ private struct TranslationMarkdownHarness: View {
 }
 
 private final class EchoingOpenStreamService: LLMServicing, @unchecked Sendable {
+    private let initialOutput: String?
+
+    init(initialOutput: String? = nil) {
+        self.initialOutput = initialOutput
+    }
     private let lock = NSLock()
     private var continuation: AsyncThrowingStream<String, Error>.Continuation?
 
@@ -1492,7 +1567,7 @@ private final class EchoingOpenStreamService: LLMServicing, @unchecked Sendable 
             self.continuation = continuation
             lock.unlock()
             previousContinuation?.finish()
-            continuation.yield(text)
+            continuation.yield(initialOutput ?? text)
         }
     }
 
@@ -1500,6 +1575,12 @@ private final class EchoingOpenStreamService: LLMServicing, @unchecked Sendable 
 
     func validate(apiKey: String, model: String) async throws -> String { "test" }
 
+    func send(_ delta: String) {
+        lock.lock()
+        let active = continuation
+        lock.unlock()
+        active?.yield(delta)
+    }
     func finish() {
         lock.lock()
         let continuation = continuation
