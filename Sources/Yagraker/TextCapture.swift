@@ -15,9 +15,9 @@ enum SelectionReader {
         return AXIsProcessTrustedWithOptions(options)
     }
 
-    /// `AXFocusedApplication → AXFocusedUIElement → AXSelectedText`.
-    static func readSelectedText(for application: NSRunningApplication? = nil) -> String? {
-        guard isAccessibilityGranted else { return nil }
+    /// Reads the focused application's selected text and bounding box (in Cocoa screen coordinates).
+    static func readSelection(for application: NSRunningApplication? = nil) -> (text: String?, bounds: NSRect?) {
+        guard isAccessibilityGranted else { return (nil, nil) }
         let app: AXUIElement
         if let application {
             app = AXUIElementCreateApplication(application.processIdentifier)
@@ -25,19 +25,120 @@ enum SelectionReader {
             let systemWide = AXUIElementCreateSystemWide()
             var appValue: CFTypeRef?
             guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedApplicationAttribute as CFString, &appValue) == .success,
-                  let appValue else { return nil }
+                  let appValue else { return (nil, nil) }
             app = unsafeBitCast(appValue, to: AXUIElement.self)
         }
+        // Guard against hung/frozen external applications blocking the UI
+        AXUIElementSetMessagingTimeout(app, 0.2)
         var focusedValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focusedValue) == .success,
-              let focusedValue else { return nil }
+              let focusedValue else { return (nil, nil) }
         let focused = unsafeBitCast(focusedValue, to: AXUIElement.self)
+
         var selectedValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(focused, kAXSelectedTextAttribute as CFString, &selectedValue) == .success else {
+        _ = AXUIElementCopyAttributeValue(focused, kAXSelectedTextAttribute as CFString, &selectedValue)
+        let text = selectedValue as? String
+
+        let bounds = readBounds(for: focused)
+        return (text, bounds)
+    }
+
+    /// `AXFocusedApplication → AXFocusedUIElement → AXSelectedText`.
+    static func readSelectedText(for application: NSRunningApplication? = nil) -> String? {
+        readSelection(for: application).text
+    }
+
+    /// Reads the screen bounds (in Cocoa screen coordinates) of the focused application's current text selection.
+    static func readSelectionBounds(for application: NSRunningApplication? = nil) -> NSRect? {
+        readSelection(for: application).bounds
+    }
+
+    /// Fallback anchor based on the mouse location when AX bounds are unavailable.
+    /// Returns nil if the mouse is outside all screens or positioned within the system menu bar.
+    static func fallbackMouseAnchor() -> NSRect? {
+        let mouse = NSEvent.mouseLocation
+        let screens = NSScreen.screens
+        guard let screen = screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) else {
             return nil
         }
-        return selectedValue as? String
+        if mouse.y > screen.visibleFrame.maxY {
+            return nil
+        }
+        return NSRect(x: mouse.x, y: mouse.y, width: 0, height: 0)
     }
+
+    private static func readBounds(for focused: AXUIElement) -> NSRect? {
+        var rangeValue: CFTypeRef?
+        var rangeResult = AXUIElementCopyAttributeValue(focused, kAXSelectedTextRangeAttribute as CFString, &rangeValue)
+        if rangeResult != .success {
+            var rangesValue: CFTypeRef?
+            if AXUIElementCopyAttributeValue(focused, kAXSelectedTextRangesAttribute as CFString, &rangesValue) == .success,
+               let ranges = rangesValue as? [AXValue],
+               let first = ranges.first {
+                rangeValue = first
+                rangeResult = .success
+            }
+        }
+
+        if rangeResult == .success, let rangeValue {
+            var boundsValue: CFTypeRef?
+            let boundsResult = AXUIElementCopyParameterizedAttributeValue(
+                focused,
+                kAXBoundsForRangeParameterizedAttribute as CFString,
+                rangeValue,
+                &boundsValue
+            )
+            if boundsResult == .success, let boundsValue {
+                var axRect = CGRect.zero
+                if AXValueGetType(boundsValue as! AXValue) == .cgRect,
+                   AXValueGetValue(boundsValue as! AXValue, .cgRect, &axRect),
+                   !axRect.isNull, axRect.height > 0 {
+                    if let cocoaRect = axRectToCocoaRect(axRect) {
+                        return cocoaRect
+                    }
+                }
+            }
+        }
+
+        // Fallback for compact controls (single-line input fields, search fields)
+        var posValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(focused, kAXPositionAttribute as CFString, &posValue) == .success,
+           AXUIElementCopyAttributeValue(focused, kAXSizeAttribute as CFString, &sizeValue) == .success,
+           let posValue, let sizeValue {
+            var point = CGPoint.zero
+            var size = CGSize.zero
+            if AXValueGetValue(posValue as! AXValue, .cgPoint, &point),
+               AXValueGetValue(sizeValue as! AXValue, .cgSize, &size),
+               size.height > 0 && size.height <= 80, size.width > 0 {
+                let axRect = CGRect(origin: point, size: size)
+                if let cocoaRect = axRectToCocoaRect(axRect) {
+                    return cocoaRect
+                }
+            }
+        }
+
+        return nil
+    }
+
+    /// Converts an AX / CoreGraphics screen rect (top-left origin, Y downwards)
+    /// to a Cocoa screen rect (bottom-left origin of primary screen, Y upwards).
+    static func axRectToCocoaRect(_ axRect: CGRect) -> NSRect? {
+        let screens = NSScreen.screens
+        guard let primaryScreen = screens.first else { return nil }
+        let primaryHeight = primaryScreen.frame.height
+        let cocoaY = primaryHeight - axRect.origin.y - axRect.size.height
+        let cocoaRect = NSRect(
+            x: axRect.origin.x,
+            y: cocoaY,
+            width: max(1, axRect.size.width),
+            height: max(1, axRect.size.height)
+        )
+        guard screens.contains(where: { $0.frame.intersects(cocoaRect) }) else {
+            return nil
+        }
+        return cocoaRect
+}
 }
 
 enum KeyboardSimulator {

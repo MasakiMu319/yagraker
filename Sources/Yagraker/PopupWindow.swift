@@ -29,6 +29,70 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     static let defaultSize = NSSize(width: 481, height: 373)
     static let minimumWidth: CGFloat = 440
     static let minimumHeight: CGFloat = 240
+    nonisolated static let anchorGap: CGFloat = 8
+    nonisolated static let screenMargin: CGFloat = 8
+
+    struct AnchoredPlacement: Equatable {
+        let origin: NSPoint
+        let isAnchoredAbove: Bool
+    }
+
+    /// Pure geometric placement for a floating panel anchored to a screen rectangle.
+    /// Prefers positioning directly below the anchor; flips above if space is constrained.
+    nonisolated static func calculateAnchoredPlacement(
+        near anchorRect: NSRect,
+        panelSize: NSSize,
+        visibleFrame: NSRect,
+        screenMargin: CGFloat = 8,
+        anchorGap: CGFloat = 8
+    ) -> AnchoredPlacement {
+        var x = anchorRect.minX
+        let minX = visibleFrame.minX + screenMargin
+        let maxX = visibleFrame.maxX - screenMargin - panelSize.width
+        if maxX >= minX {
+            x = min(max(x, minX), maxX)
+        } else {
+            x = minX
+        }
+
+        let belowTop = anchorRect.minY - anchorGap
+        let belowY = belowTop - panelSize.height
+
+        let aboveY = anchorRect.maxY + anchorGap
+        let aboveTop = aboveY + panelSize.height
+
+        let canFitBelow = belowY >= visibleFrame.minY + screenMargin
+        let canFitAbove = aboveTop <= visibleFrame.maxY - screenMargin
+
+        var y: CGFloat
+        let isAbove: Bool
+        if canFitBelow {
+            y = belowY
+            isAbove = false
+        } else if canFitAbove {
+            y = aboveY
+            isAbove = true
+        } else {
+            let spaceBelow = anchorRect.minY - visibleFrame.minY
+            let spaceAbove = visibleFrame.maxY - anchorRect.maxY
+            if spaceBelow >= spaceAbove {
+                y = belowY
+                isAbove = false
+            } else {
+                y = aboveY
+                isAbove = true
+            }
+            let minY = visibleFrame.minY + screenMargin
+            let maxY = visibleFrame.maxY - screenMargin - panelSize.height
+            if maxY >= minY {
+                y = min(max(y, minY), maxY)
+            } else {
+                y = minY
+            }
+        }
+
+        return AnchoredPlacement(origin: NSPoint(x: round(x), y: round(y)), isAnchoredAbove: isAbove)
+    }
     static var isTestingEnvironment: Bool {
         NSClassFromString("XCTestCase") != nil
             || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
@@ -46,6 +110,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     private var manuallyResizedHeight: CGFloat?
     private var isLiveResizing = false
     private var isUserDragging = false
+    private var isAnchoredAbove = false
 
     init(appState: AppState) {
         self.appState = appState
@@ -94,9 +159,8 @@ final class PopupWindow: NSObject, NSWindowDelegate {
 
     // MARK: Show / close
 
-    func show() {
-        positionPanel()
-        resizePanel(animated: false)
+    func show(anchoringTo anchorRect: NSRect? = nil) {
+        positionPanel(anchoringTo: anchorRect)
         if !Self.isTestingEnvironment {
             NSApp.activate()
             panel.makeKeyAndOrderFront(nil)
@@ -115,6 +179,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
         settleAnchorFrame = nil
         isLiveResizing = false
         isUserDragging = false
+        isAnchoredAbove = false
         removeMonitors()
         panel.close()
     }
@@ -134,26 +199,66 @@ final class PopupWindow: NSObject, NSWindowDelegate {
 
     // MARK: Position
 
-    private func positionPanel() {
-        let size = Self.constrainedSize(
-            panel.frame.size,
+    func targetPanelSize() -> NSSize {
+        hostingView.layoutSubtreeIfNeeded()
+        let fitting = hostingView.fittingSize
+        let preferredHeight = manuallyResizedHeight ?? fitting.height
+        let height = isShowingGrammarResult
+            ? min(preferredHeight, fitting.height)
+            : (preferredHeight > 0 ? preferredHeight : panel.frame.height)
+        return Self.constrainedSize(
+            NSSize(width: panel.frame.width, height: height),
             minimumSize: Self.minimumPanelSize,
             maximumSize: maximumPanelSize
         )
+    }
+
+    private func positionPanel(anchoringTo anchorRect: NSRect? = nil) {
+        let size = targetPanelSize()
+
+        if let anchorRect {
+            positionPanel(near: anchorRect, size: size)
+            return
+        }
+
+        isAnchoredAbove = false
+
         if let topLeft = SettingsStore.shared.panelTopLeft {
             setFrameKeepingTopLeft(size, topLeft: topLeft)
             return
         }
         // First run: center horizontally on the screen with the mouse, upper third.
         let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+        let screens = NSScreen.screens
+        let screen = screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? screens.first ?? NSScreen.main
         guard let screen else { return }
         let visible = screen.visibleFrame
         let origin = NSPoint(
             x: visible.midX - size.width / 2,
             y: visible.maxY - visible.height / 3 - size.height
         )
-        panel.setFrame(NSRect(origin: origin, size: size), display: false)
+        panel.setFrame(NSRect(origin: origin, size: size), display: true)
+    }
+
+    private func positionPanel(near anchorRect: NSRect, size: NSSize) {
+        let screens = NSScreen.screens
+        let anchorCenter = NSPoint(x: anchorRect.midX, y: anchorRect.midY)
+        let screen = screens.first { NSMouseInRect(anchorCenter, $0.frame, false) }
+            ?? screens.first { $0.frame.intersects(anchorRect) }
+            ?? panel.screen
+            ?? screens.first
+            ?? NSScreen.main
+        guard let screen else { return }
+
+        let placement = Self.calculateAnchoredPlacement(
+            near: anchorRect,
+            panelSize: size,
+            visibleFrame: screen.visibleFrame,
+            screenMargin: Self.screenMargin,
+            anchorGap: Self.anchorGap
+        )
+        isAnchoredAbove = placement.isAnchoredAbove
+        panel.setFrame(NSRect(origin: placement.origin, size: size), display: true)
     }
 
     private func setFrameKeepingTopLeft(_ size: NSSize, topLeft: NSPoint) {
@@ -236,20 +341,23 @@ final class PopupWindow: NSObject, NSWindowDelegate {
 
     func resizePanel(animated: Bool) {
         guard !isLiveResizing, !isUserDragging else { return }
-        hostingView.layoutSubtreeIfNeeded()
-        let fitting = hostingView.fittingSize
-        let preferredHeight = manuallyResizedHeight ?? fitting.height
-        let height = isShowingGrammarResult
-            ? min(preferredHeight, fitting.height)
-            : preferredHeight
-        let size = Self.constrainedSize(
-            NSSize(width: panel.frame.width, height: height),
-            minimumSize: Self.minimumPanelSize,
-            maximumSize: maximumPanelSize
-        )
+        let size = targetPanelSize()
         var frame = panel.frame
-        let topLeft = NSPoint(x: frame.minX, y: frame.maxY)
-        frame = NSRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height)
+        if isAnchoredAbove {
+            let currentBottom = frame.minY
+            let screen = panel.screen ?? NSScreen.main
+            let visibleMaxY = (screen?.visibleFrame.maxY ?? (currentBottom + size.height)) - Self.screenMargin
+            let targetMaxY = currentBottom + size.height
+            if targetMaxY <= visibleMaxY {
+                frame = NSRect(x: frame.minX, y: currentBottom, width: size.width, height: size.height)
+            } else {
+                let clampedY = max(screen?.visibleFrame.minY ?? 0, visibleMaxY - size.height)
+                frame = NSRect(x: frame.minX, y: clampedY, width: size.width, height: size.height)
+            }
+        } else {
+            let topLeft = NSPoint(x: frame.minX, y: frame.maxY)
+            frame = NSRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height)
+        }
         if animated {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.22
@@ -274,6 +382,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
             heightSettleTask?.cancel()
             heightSettleTask = nil
             isUserDragging = true
+            isAnchoredAbove = false
             stopFrameAnimation()
             dragStartOrigin = panel.frame.origin
             dragStartMouseLocation = NSEvent.mouseLocation
@@ -318,6 +427,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
         heightSettleTask = nil
         settleAnchorFrame = nil
         isLiveResizing = true
+        isAnchoredAbove = false
         stopFrameAnimation()
     }
 

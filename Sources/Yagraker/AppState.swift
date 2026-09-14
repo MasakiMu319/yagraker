@@ -129,46 +129,51 @@ final class AppState: ObservableObject {
 
     /// ⇧⌘G — check the current selection (AX first, then menu/synthetic copy, clipboard fallback).
     func handleHotkey() {
-        let sourceApplication = currentExternalApplication()
-        SelectionReader.promptForAccessibilityIfNeeded()
-        let accessibilitySelection = SelectionReader.readSelectedText(for: sourceApplication)
+        let (sourceApplication, anchorRect, accessibilityText) = resolveSelectionContext()
         Task {
-            let (captured, hasDirectSelection) = await captureSelection(from: sourceApplication, accessibility: accessibilitySelection)
+            let (captured, hasDirectSelection) = await captureSelection(from: sourceApplication, accessibility: accessibilityText)
 
             guard let text = captured, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                self.showNoTextError(for: .grammar)
+                self.showNoTextError(for: .grammar, anchorRect: anchorRect)
                 return
             }
             guard ProviderResolver.configuredProviders(for: .grammar).isEmpty == false else {
-                self.showConfigurationError(for: .grammar)
+                self.showConfigurationError(for: .grammar, anchorRect: anchorRect)
                 return
             }
             self.startGrammarCheck(
                 text: text,
                 providerOverride: nil,
-                replacementTarget: hasDirectSelection ? sourceApplication : nil
+                replacementTarget: hasDirectSelection ? sourceApplication : nil,
+                anchorRect: anchorRect
             )
         }
     }
 
     /// ⌥⌘T — translate the current selection in the Translate workspace.
     func handleTranslateHotkey() {
-        let sourceApplication = currentExternalApplication()
-        SelectionReader.promptForAccessibilityIfNeeded()
-        let accessibilitySelection = SelectionReader.readSelectedText(for: sourceApplication)
+        let (sourceApplication, anchorRect, accessibilityText) = resolveSelectionContext()
         Task {
-            let (captured, _) = await captureSelection(from: sourceApplication, accessibility: accessibilitySelection)
+            let (captured, _) = await captureSelection(from: sourceApplication, accessibility: accessibilityText)
 
             guard let text = captured, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                self.showNoTextError(for: .translation)
+                self.showNoTextError(for: .translation, anchorRect: anchorRect)
                 return
             }
             guard ProviderResolver.configuredProviders(for: .translation).isEmpty == false else {
-                self.showConfigurationError(for: .translation)
+                self.showConfigurationError(for: .translation, anchorRect: anchorRect)
                 return
             }
-            self.startTranslation(text: text)
+            self.startTranslation(text: text, anchorRect: anchorRect)
         }
+    }
+
+    private func resolveSelectionContext() -> (sourceApplication: NSRunningApplication?, anchorRect: NSRect?, text: String?) {
+        let sourceApplication = currentExternalApplication()
+        SelectionReader.promptForAccessibilityIfNeeded()
+        let selectionContext = SelectionReader.readSelection(for: sourceApplication)
+        let anchorRect = selectionContext.bounds ?? SelectionReader.fallbackMouseAnchor()
+        return (sourceApplication, anchorRect, selectionContext.text)
     }
 
     private func captureSelection(from application: NSRunningApplication?, accessibility: String?) async -> (String?, Bool) {
@@ -195,11 +200,11 @@ final class AppState: ObservableObject {
         popupWindow.show()
     }
 
-    private func startTranslation(text: String) {
+    private func startTranslation(text: String, anchorRect: NSRect? = nil) {
         toolPanelModel.activate(mode: .translation, input: text, clearResults: true)
         errorMessage = nil
         replacedNotice = nil
-        popupWindow.show()
+        popupWindow.show(anchoringTo: anchorRect)
         toolPanelModel.startGeneration(mode: .translation, text: text)
     }
 
@@ -208,7 +213,8 @@ final class AppState: ObservableObject {
     func startGrammarCheck(
         text: String,
         providerOverride: LLMProviderKind?,
-        replacementTarget: NSRunningApplication? = nil
+        replacementTarget: NSRunningApplication? = nil,
+        anchorRect: NSRect? = nil
     ) {
         replacementTargetApplication = replacementTarget
         originalText = text
@@ -218,11 +224,12 @@ final class AppState: ObservableObject {
         toolPanelModel.activate(mode: .grammar, input: text, clearResults: true)
         checkGrammar(
             request: GrammarCheckRequest(text: text, reader: L10n.shared.reader),
-            providerOverride: providerOverride
+            providerOverride: providerOverride,
+            anchorRect: anchorRect
         )
     }
 
-    func checkGrammar(request: GrammarCheckRequest, providerOverride: LLMProviderKind?) {
+    func checkGrammar(request: GrammarCheckRequest, providerOverride: LLMProviderKind?, anchorRect: NSRect? = nil) {
         grammarTask?.cancel()
         let kind = providerOverride ?? toolPanelModel.provider(for: .grammar)
         do {
@@ -230,7 +237,7 @@ final class AppState: ObservableObject {
             lastRequest = request
             isLoading = true
             errorMessage = nil
-            popupWindow.show()
+            popupWindow.show(anchoringTo: anchorRect)
             grammarTask = Task { [weak self] in
                 guard let self else { return }
                 do {
@@ -256,7 +263,7 @@ final class AppState: ObservableObject {
         } catch {
             isLoading = false
             errorMessage = L10n.shared.errorText(error)
-            popupWindow.show()
+            popupWindow.show(anchoringTo: anchorRect)
         }
     }
 
@@ -438,16 +445,16 @@ final class AppState: ObservableObject {
 
     // MARK: - Settings
 
-    func showConfigurationError(for mode: ToolPanelModel.Mode) {
+    func showConfigurationError(for mode: ToolPanelModel.Mode, anchorRect: NSRect? = nil) {
         toolPanelModel.selectMode(mode)
         errorMessage = L10n.shared.errorText(LLMError.noProvider)
-        popupWindow.show()
+        popupWindow.show(anchoringTo: anchorRect)
     }
 
-    private func showNoTextError(for mode: ToolPanelModel.Mode) {
+    private func showNoTextError(for mode: ToolPanelModel.Mode, anchorRect: NSRect? = nil) {
         toolPanelModel.selectMode(mode)
         errorMessage = L10n.shared.t("error.noTranslatableText")
-        popupWindow.show()
+        popupWindow.show(anchoringTo: anchorRect)
     }
 
     func openSettings() {

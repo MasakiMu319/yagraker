@@ -495,6 +495,187 @@ final class YagrakerUITests: XCTestCase {
         }
     }
 
+    func testPopupWindowAnchoringBelowSelection() throws {
+        try MainActor.assumeIsolated {
+            let appState = AppState()
+            let screen = try XCTUnwrap(NSScreen.main)
+            let visible = screen.visibleFrame
+            let anchorRect = NSRect(
+                x: visible.minX + 150,
+                y: visible.midY + 100,
+                width: 120,
+                height: 24
+            )
+
+            appState.isPinned = true
+            appState.popupWindow.show(anchoringTo: anchorRect)
+            defer { appState.dismissPopup(restoreFocus: false) }
+            waitForViewUpdate()
+
+            let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
+            // Panel should appear below the selection
+            XCTAssertLessThanOrEqual(panel.frame.maxY, anchorRect.minY - PopupWindow.anchorGap + 1)
+            // Left edge should align with anchor rect
+            XCTAssertEqual(panel.frame.minX, anchorRect.minX, accuracy: 1)
+            // Must stay within visible screen bounds
+            XCTAssertGreaterThanOrEqual(panel.frame.minY, visible.minY)
+        }
+    }
+
+    func testPopupWindowAnchoringAboveWhenBelowLacksRoom() throws {
+        try MainActor.assumeIsolated {
+            let appState = AppState()
+            let screen = try XCTUnwrap(NSScreen.main)
+            let visible = screen.visibleFrame
+            // Place anchor very close to the bottom of the screen
+            let anchorRect = NSRect(
+                x: visible.minX + 150,
+                y: visible.minY + 30,
+                width: 120,
+                height: 24
+            )
+
+            appState.isPinned = true
+            appState.popupWindow.show(anchoringTo: anchorRect)
+            defer { appState.dismissPopup(restoreFocus: false) }
+            waitForViewUpdate()
+
+            let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
+            // When below lacks room, the panel flips above the selection
+            XCTAssertGreaterThanOrEqual(panel.frame.minY, anchorRect.maxY + PopupWindow.anchorGap - 1)
+            // Left edge should align with anchor rect
+            XCTAssertEqual(panel.frame.minX, anchorRect.minX, accuracy: 1)
+            // Must stay within visible screen bounds
+            XCTAssertLessThanOrEqual(panel.frame.maxY, visible.maxY)
+        }
+    }
+
+    func testPopupWindowAnchoringClampsRightScreenEdge() throws {
+        try MainActor.assumeIsolated {
+            let appState = AppState()
+            let screen = try XCTUnwrap(NSScreen.main)
+            let visible = screen.visibleFrame
+            // Anchor near the right edge of the screen
+            let anchorRect = NSRect(
+                x: visible.maxX - 50,
+                y: visible.midY,
+                width: 40,
+                height: 20
+            )
+
+            appState.isPinned = true
+            appState.popupWindow.show(anchoringTo: anchorRect)
+            defer { appState.dismissPopup(restoreFocus: false) }
+            waitForViewUpdate()
+
+            let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
+            // Panel must not spill over the right screen margin
+            XCTAssertLessThanOrEqual(panel.frame.maxX, visible.maxX - PopupWindow.screenMargin + 1)
+            XCTAssertGreaterThanOrEqual(panel.frame.minX, visible.minX)
+        }
+    }
+
+    func testPopupWindowAnchorOverridesSavedPanelTopLeft() throws {
+        try MainActor.assumeIsolated {
+            let store = SettingsStore.shared
+            let previousTopLeft = store.panelTopLeft
+            let screen = try XCTUnwrap(NSScreen.main)
+            let visible = screen.visibleFrame
+            // Saved position far away in the upper left
+            let savedTopLeft = CGPoint(x: visible.minX + 20, y: visible.maxY - 20)
+            store.panelTopLeft = savedTopLeft
+            defer { store.panelTopLeft = previousTopLeft }
+
+            let appState = AppState()
+            // Anchor in the center right
+            let anchorRect = NSRect(
+                x: visible.midX + 100,
+                y: visible.midY,
+                width: 100,
+                height: 20
+            )
+
+            appState.isPinned = true
+            appState.popupWindow.show(anchoringTo: anchorRect)
+            defer { appState.dismissPopup(restoreFocus: false) }
+            waitForViewUpdate()
+
+            let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
+            // Panel should anchor near anchorRect, not at savedTopLeft
+            XCTAssertNotEqual(panel.frame.minX, savedTopLeft.x, accuracy: 10)
+            XCTAssertEqual(panel.frame.minX, anchorRect.minX, accuracy: 1)
+        }
+    }
+
+    func testSelectionReaderAxRectToCocoaRectConversion() throws {
+        let screen = try XCTUnwrap(NSScreen.screens.first)
+        let primaryHeight = screen.frame.height
+
+        // Top of primary screen in AX coordinates (y = 0, h = 20)
+        let axTop = CGRect(x: 100, y: 0, width: 200, height: 20)
+        let cocoaTop = try XCTUnwrap(SelectionReader.axRectToCocoaRect(axTop))
+        XCTAssertEqual(cocoaTop.origin.x, 100, accuracy: 0.1)
+        XCTAssertEqual(cocoaTop.origin.y, primaryHeight - 20, accuracy: 0.1)
+        XCTAssertEqual(cocoaTop.size.width, 200, accuracy: 0.1)
+        XCTAssertEqual(cocoaTop.size.height, 20, accuracy: 0.1)
+
+        // Bottom of primary screen in AX coordinates
+        let axBottom = CGRect(x: 50, y: primaryHeight - 30, width: 100, height: 30)
+        let cocoaBottom = try XCTUnwrap(SelectionReader.axRectToCocoaRect(axBottom))
+        XCTAssertEqual(cocoaBottom.origin.x, 50, accuracy: 0.1)
+        XCTAssertEqual(cocoaBottom.origin.y, 0, accuracy: 0.1)
+
+        // Completely outside screens
+        let axOutside = CGRect(x: -99999, y: -99999, width: 10, height: 10)
+        XCTAssertNil(SelectionReader.axRectToCocoaRect(axOutside))
+    }
+
+    func testCalculateAnchoredPlacementPureGeometry() {
+        let visible = NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let panelSize = NSSize(width: 480, height: 360)
+
+        // 1. Normal below
+        let normalAnchor = NSRect(x: 300, y: 500, width: 100, height: 20)
+        let normalPlacement = PopupWindow.calculateAnchoredPlacement(
+            near: normalAnchor,
+            panelSize: panelSize,
+            visibleFrame: visible
+        )
+        XCTAssertFalse(normalPlacement.isAnchoredAbove)
+        XCTAssertEqual(normalPlacement.origin.x, 300)
+        XCTAssertEqual(normalPlacement.origin.y, 500 - 8 - 360)
+
+        // 2. Near bottom -> flips above
+        let bottomAnchor = NSRect(x: 300, y: 50, width: 100, height: 20)
+        let bottomPlacement = PopupWindow.calculateAnchoredPlacement(
+            near: bottomAnchor,
+            panelSize: panelSize,
+            visibleFrame: visible
+        )
+        XCTAssertTrue(bottomPlacement.isAnchoredAbove)
+        XCTAssertEqual(bottomPlacement.origin.x, 300)
+        XCTAssertEqual(bottomPlacement.origin.y, 70 + 8)
+
+        // 3. Right edge -> clamps within visibleFrame
+        let rightAnchor = NSRect(x: 1300, y: 500, width: 100, height: 20)
+        let rightPlacement = PopupWindow.calculateAnchoredPlacement(
+            near: rightAnchor,
+            panelSize: panelSize,
+            visibleFrame: visible
+        )
+        XCTAssertEqual(rightPlacement.origin.x, 1440 - 8 - 480)
+        XCTAssertFalse(rightPlacement.isAnchoredAbove)
+
+        // 4. Left edge -> clamps within visibleFrame
+        let leftAnchor = NSRect(x: -50, y: 500, width: 100, height: 20)
+        let leftPlacement = PopupWindow.calculateAnchoredPlacement(
+            near: leftAnchor,
+            panelSize: panelSize,
+            visibleFrame: visible
+        )
+        XCTAssertEqual(leftPlacement.origin.x, 8)
+    }
+
     func testModeSwitchPreservesInputAndChangesTaskRoute() {
         MainActor.assumeIsolated {
             let toolPanel = ToolPanelModel()
