@@ -31,8 +31,7 @@ final class AppState: ObservableObject {
         }
         model.onModeChanged = { [weak self] _ in
             guard let self else { return }
-            self.grammar.errorMessage = nil
-            self.grammar.replacedNotice = nil
+            self.popupCoordinator.handleModeChanged(grammar: self.grammar)
             Task { @MainActor [weak self] in
                 await Task.yield()
                 guard let self, self.popupWindow.isVisible else { return }
@@ -42,45 +41,13 @@ final class AppState: ObservableObject {
         }
         model.onInputChanged = { [weak self] newInput in
             guard let self else { return }
-            let trimmed = newInput.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            if trimmed.isEmpty {
-                var needsSettle = false
-                if self.grammar.correctionResult != nil {
-                    self.grammar.correctionResult = nil
-                    self.grammar.originalText = ""
-                    needsSettle = true
-                }
-                if self.grammar.replacedNotice != nil {
-                    self.grammar.replacedNotice = nil
-                }
-                if self.toolPanelModel.hasOutput || self.toolPanelModel.generationPhase != .idle {
-                    self.toolPanelModel.cancelGeneration(clearOutput: true)
-                    needsSettle = true
-                }
-                if needsSettle && self.popupWindow.isVisible {
-                    self.popupWindow.scheduleHeightSettle()
-                }
-                return
-            }
-
-            if self.toolPanelModel.mode == .grammar,
-               self.grammar.correctionResult != nil,
-               newInput != self.grammar.originalText {
-                self.grammar.correctionResult = nil
-                self.grammar.replacedNotice = nil
-                if self.popupWindow.isVisible {
-                    self.popupWindow.scheduleHeightSettle()
-                }
-            }
-
-            if (self.toolPanelModel.mode == .translation || self.toolPanelModel.mode == .deepRead),
-               self.toolPanelModel.generationPhase == .done,
-               newInput != self.toolPanelModel.lastGeneratedInput {
-                self.toolPanelModel.cancelGeneration(clearOutput: true)
-                if self.popupWindow.isVisible {
-                    self.popupWindow.scheduleHeightSettle()
-                }
+            let result = self.popupCoordinator.handleInputChanged(
+                newInput,
+                toolPanel: self.toolPanelModel,
+                grammar: self.grammar
+            )
+            if result.needsSettle, self.popupWindow.isVisible {
+                self.popupWindow.scheduleHeightSettle()
             }
         }
         return model
@@ -92,6 +59,7 @@ final class AppState: ObservableObject {
 
     private let externalAppContext = ExternalAppContext()
     private lazy var selectionCoordinator = SelectionCoordinator(externalAppContext: externalAppContext)
+    private let popupCoordinator = PopupCoordinator()
 
     init() {}
 
