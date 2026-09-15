@@ -193,90 +193,13 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: General
-
-    private func settingsCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        content()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(Theme.ink.opacity(0.035))
-            )
-    }
-
     private var generalPane: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                settingsSection(l10n.t("settings.general.language")) {
-                    settingsCard {
-                        ThemedMenu(
-                            title: languageName(l10n.language),
-                            options: AppLanguage.allCases,
-                            label: { languageName($0) },
-                            isSelected: { $0 == l10n.language },
-                            width: 220,
-                            accessibilityLabel: l10n.t("settings.general.language"),
-                            onSelect: { l10n.language = $0 }
-                        )
-                    }
-                }
-
-                settingsSection(l10n.t("settings.general.permissions")) {
-                    settingsCard {
-                        HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: accessibilityGranted ? "checkmark.shield.fill" : "lock.trianglebadge.exclamationmark.fill")
-                                .font(.system(size: 16))
-                                .foregroundStyle(accessibilityGranted ? Theme.fixed : Theme.accent)
-                                .frame(width: 34, height: 34)
-                                .background(Circle().fill(accessibilityGranted ? Theme.fixedSoft : Theme.accentSoft))
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(accessibilityGranted ? l10n.t("settings.permissions.granted") : l10n.t("settings.permissions.required"))
-                                    .font(.system(size: 13, weight: .semibold))
-                                if !accessibilityGranted {
-                                    Text(l10n.t("settings.permissions.help"))
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(Theme.inkSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                    Button(l10n.t("settings.permissions.grant")) {
-                                        requestAccessibility()
-                                    }
-                                }
-                            }
-                            Spacer()
-                        }
-                    }
-                }
-
-                settingsSection(l10n.t("settings.general.updates")) {
-                    settingsCard {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Toggle(
-                                l10n.t("settings.general.autoCheck"),
-                                isOn: Binding(
-                                    get: { appState.updater.automaticallyChecksForUpdates },
-                                    set: { appState.updater.automaticallyChecksForUpdates = $0 }
-                                )
-                            )
-                            .tint(Theme.accent)
-                            Text(appState.updater.statusMessage)
-                                .font(.system(size: 12))
-                                .foregroundStyle(Theme.inkSecondary)
-                            if let date = appState.updater.lastCheckedAt {
-                                Text(l10n.t("updater.status.lastChecked", Self.dateFormatter.string(from: date)))
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(Theme.inkSecondary)
-                            }
-                            Button(l10n.t("settings.general.checkNow")) {
-                                appState.updater.checkForUpdates()
-                            }
-                            .disabled(!appState.updater.canCheckForUpdates || appState.updater.isChecking)
-                        }
-                    }
-                }
+        SettingsGeneralPane(accessibilityGranted: accessibilityGranted) {
+            accessibilityGranted = SelectionReader.promptForAccessibilityIfNeeded()
+            if !accessibilityGranted,
+               let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                NSWorkspace.shared.open(url)
             }
-            .padding(24)
         }
     }
 
@@ -680,94 +603,12 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: Shortcuts
-
     private var shortcutsPane: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(l10n.t("settings.shortcuts.hint"))
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.inkSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                shortcutRow(
-                    title: l10n.t("shortcut.checkGrammar.title"),
-                    detail: l10n.t("shortcut.checkGrammar.detail"),
-                    name: .checkGrammar
-                )
-                shortcutRow(
-                    title: l10n.t("shortcut.translate.title"),
-                    detail: l10n.t("shortcut.translate.detail"),
-                    name: .translate
-                )
-                shortcutRow(
-                    title: l10n.t("shortcut.openTranslation.title"),
-                    detail: l10n.t("shortcut.openTranslation.detail"),
-                    name: .openTranslation
-                )
-                shortcutRow(
-                    title: l10n.t("shortcut.openDeepRead.title"),
-                    detail: l10n.t("shortcut.openDeepRead.detail"),
-                    name: .openDeepRead
-                )
-
-                HStack {
-                    Spacer()
-                    Button(l10n.t("settings.shortcuts.reset")) {
-                        KeyboardShortcuts.reset(
-                            .checkGrammar, .translate, .openTranslation, .openDeepRead
-                        )
-                    }
-                }
-            }
-            .padding(24)
-        }
+        SettingsShortcutsPane()
     }
-
-    private func shortcutRow(title: String, detail: String, name: KeyboardShortcuts.Name) -> some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Theme.ink)
-                Text(detail)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(Theme.inkSecondary)
-            }
-            Spacer()
-            ShortcutRecorder(name: name)
-                .frame(width: 150, height: 24)
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Theme.ink.opacity(0.035))
-        )
-    }
-
-    // MARK: About
 
     private var aboutPane: some View {
-        VStack(spacing: 14) {
-            Image(nsImage: ReIconAsset.yagrakerMark)
-                .renderingMode(.original)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 88, height: 88)
-                .accessibilityHidden(true)
-            Text("Yagraker")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(Theme.ink)
-            Text(l10n.t("about.tagline"))
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.inkSecondary)
-            Text(l10n.t("about.version", appVersion, buildNumber))
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(Theme.inkSecondary)
-
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(24)
+        SettingsAboutPane()
     }
 
     // MARK: Provider actions
@@ -1026,36 +867,6 @@ struct SettingsView: View {
 
     // MARK: Helpers
 
-    private func settingsSection<Content: View>(
-        _ title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Theme.inkSecondary)
-                .textCase(.uppercase)
-            content()
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func requestAccessibility() {
-        accessibilityGranted = SelectionReader.promptForAccessibilityIfNeeded()
-        if !accessibilityGranted,
-           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
-    private func languageName(_ language: AppLanguage) -> String {
-        switch language {
-        case .system: return l10n.t("settings.language.system")
-        case .english: return l10n.t("settings.language.english")
-        case .simplifiedChinese: return l10n.t("settings.language.simplifiedChinese")
-        case .traditionalChinese: return l10n.t("settings.language.traditionalChinese")
-        }
-    }
 
     private func providerName(_ provider: LLMProviderKind) -> String {
         switch provider {
