@@ -103,6 +103,7 @@ final class AppState: ObservableObject {
     private var lastRequest: GrammarCheckRequest?
     private var replacementTargetApplication: NSRunningApplication?
     private let externalAppContext = ExternalAppContext()
+    private lazy var selectionCoordinator = SelectionCoordinator(externalAppContext: externalAppContext)
 
     init() {}
 
@@ -150,27 +151,11 @@ final class AppState: ObservableObject {
     }
 
     private func resolveSelectionContext() -> (sourceApplication: NSRunningApplication?, anchorRect: NSRect?, text: String?) {
-        let sourceApplication = currentExternalApplication()
-        SelectionReader.promptForAccessibilityIfNeeded()
-        let selectionContext = SelectionReader.readSelection(for: sourceApplication)
-        let anchorRect = selectionContext.bounds ?? SelectionReader.fallbackMouseAnchor()
-        return (sourceApplication, anchorRect, selectionContext.text)
+        selectionCoordinator.resolveSelectionContext()
     }
 
     private func captureSelection(from application: NSRunningApplication?, accessibility: String?) async -> (String?, Bool) {
-        if let accessibility,
-           !accessibility.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return (accessibility, true)
-        }
-        if let simulated = await TextCapture.captureSelectedTextPreservingClipboard(targetApp: application),
-           !simulated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return (simulated, true)
-        }
-        if let clipboard = TextCapture.clipboardText,
-           !clipboard.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return (clipboard, false)
-        }
-        return (nil, false)
+        await selectionCoordinator.captureSelection(from: application, accessibility: accessibility)
     }
 
     /// Open the panel in a mode without running anything.
