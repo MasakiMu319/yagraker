@@ -102,28 +102,9 @@ final class AppState: ObservableObject {
     private var grammarTask: Task<Void, Never>?
     private var lastRequest: GrammarCheckRequest?
     private var replacementTargetApplication: NSRunningApplication?
-    private var lastExternalApplication: NSRunningApplication?
-    private var activationObserver: NSObjectProtocol?
+    private let externalAppContext = ExternalAppContext()
 
-    init() {
-        rememberExternalApplication(NSWorkspace.shared.frontmostApplication)
-        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
-            Task { @MainActor [weak self] in
-                self?.rememberExternalApplication(application)
-            }
-        }
-    }
-
-    deinit {
-        if let activationObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
-        }
-    }
+    init() {}
 
     // MARK: - Hotkey entry points
 
@@ -416,31 +397,11 @@ final class AppState: ObservableObject {
         if restoreFocus { restoreExternalApplicationIfNeeded() }
     }
     func restoreExternalApplicationIfNeeded() {
-        guard !PopupWindow.isTestingEnvironment else { return }
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            guard let self,
-                  NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier,
-                  NSApp.keyWindow == nil,
-                  let application = lastExternalApplication,
-                  !application.isTerminated else { return }
-            application.activate(options: [])
-        }
+        externalAppContext.restoreExternalApplicationIfNeeded()
     }
 
     private func currentExternalApplication() -> NSRunningApplication? {
-        if let frontmost = NSWorkspace.shared.frontmostApplication,
-           frontmost.processIdentifier != ProcessInfo.processInfo.processIdentifier {
-            rememberExternalApplication(frontmost)
-        }
-        return lastExternalApplication
-    }
-
-    private func rememberExternalApplication(_ application: NSRunningApplication?) {
-        guard let application,
-              application.processIdentifier != ProcessInfo.processInfo.processIdentifier,
-              !application.isTerminated else { return }
-        lastExternalApplication = application
+        externalAppContext.currentExternalApplication()
     }
 
     // MARK: - Settings
