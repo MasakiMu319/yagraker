@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 import YagrakerCore
 
@@ -38,10 +39,6 @@ final class ToolPanelModel: ObservableObject {
         }
     }
 
-    enum GenerationPhase: Equatable {
-        case idle, streaming, done, failed(String)
-    }
-
     @Published var mode: Mode = .grammar
     @Published var input: String = "" {
         didSet {
@@ -52,14 +49,15 @@ final class ToolPanelModel: ObservableObject {
     @Published var selectedProvider: LLMProviderKind {
         didSet { SettingsStore.shared.setToolPanelProvider(selectedProvider, for: activeTask) }
     }
-    @Published private(set) var generationPhase: GenerationPhase = .idle
+    @Published private(set) var generationPhase: GenerationCoordinator.Phase = .idle
     @Published private(set) var output: String = ""
     @Published private(set) var outputMode: Mode?
     @Published private(set) var streamSource = MarkdownStreamSource()
     private(set) var lastGeneratedInput: String = ""
 
     private let resolveProvider: ProviderResolution
-    private var generationTask: Task<Void, Never>?
+    let generation = GenerationCoordinator()
+    private var generationCancellables: [AnyCancellable] = []
 
     /// Wired by AppState: submitting in grammar mode starts a grammar check.
     var onSubmitGrammar: ((String) -> Void)?
@@ -69,7 +67,27 @@ final class ToolPanelModel: ObservableObject {
     init(resolveProvider: @escaping ProviderResolution = ProviderResolver.resolve) {
         self.resolveProvider = resolveProvider
         selectedProvider = SettingsStore.shared.toolPanelProvider(for: .grammar)
+        bindGeneration()
         refreshConfiguration()
+    }
+
+    private func bindGeneration() {
+        generation.$phase
+            .receive(on: RunLoop.main)
+            .sink { [weak self] phase in self?.generationPhase = phase }
+            .store(in: &generationCancellables)
+        generation.$output
+            .receive(on: RunLoop.main)
+            .sink { [weak self] output in self?.output = output }
+            .store(in: &generationCancellables)
+        generation.$outputMode
+            .receive(on: RunLoop.main)
+            .sink { [weak self] outputMode in self?.outputMode = outputMode }
+            .store(in: &generationCancellables)
+        generation.$streamSource
+            .receive(on: RunLoop.main)
+            .sink { [weak self] source in self?.streamSource = source }
+            .store(in: &generationCancellables)
     }
 
     var activeTask: LLMTask {
@@ -143,77 +161,21 @@ final class ToolPanelModel: ObservableObject {
     /// Stream a translation or close reading of `text`. Direction and wording
     /// follow the reader's UI language so every provider behaves the same.
     func startGeneration(mode: Mode, text: String) {
-        let reader = L10n.shared.reader
-        let target = TranslationTargetLanguage.inferred(from: text, for: reader)
-        let systemPrompt: String
-        switch mode {
-        case .translation: systemPrompt = Prompts.translatorSystem(target: target)
-        case .deepRead: systemPrompt = Prompts.deepReadSystem(target: target, reader: reader)
-        case .grammar: return
-        }
         selectMode(mode)
-        generationTask?.cancel()
-        streamSource.finish()
+        generation.cancel(clearOutput: true)
         do {
             let resolved = try resolveProvider(provider(for: mode.task), mode.task)
-            output = ""
-            outputMode = mode
             lastGeneratedInput = text
-            let source = MarkdownStreamSource()
-            streamSource = source
-            generationPhase = .streaming
-            generationTask = Task { [weak self] in
-                guard let self else { return }
-                do {
-                    let stream = resolved.service.streamText(
-                        task: resolved.task,
-                        text: text,
-                        systemPrompt: systemPrompt,
-                        targetLanguage: target,
-                        apiKey: resolved.apiKey,
-                        model: resolved.model
-                    )
-                    for try await delta in stream {
-                        if Task.isCancelled { break }
-                        self.output += delta
-                        source.update(with: self.output)
-                    }
-                    self.output = self.output
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    source.update(with: self.output)
-                    source.finish()
-                    if !Task.isCancelled {
-                        self.generationPhase = self.hasOutput
-                            ? .done
-                            : .failed(L10n.shared.t("error.emptyResult"))
-                    }
-                } catch {
-                    source.finish()
-                    if !Task.isCancelled {
-                        self.generationPhase = .failed(L10n.shared.errorText(error))
-                    }
-                }
-            }
+            generation.start(mode: mode, text: text, resolved: resolved)
         } catch {
             generationPhase = .failed(L10n.shared.errorText(error))
         }
     }
 
     func cancelGeneration(clearOutput: Bool) {
-        generationTask?.cancel()
-        generationTask = nil
+        generation.cancel(clearOutput: clearOutput)
         if clearOutput {
-            streamSource.finish()
-            output = ""
-            outputMode = nil
             lastGeneratedInput = ""
-            streamSource = MarkdownStreamSource()
-            generationPhase = .idle
-        } else {
-            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            streamSource.update(with: output)
-            streamSource.finish()
-            generationPhase = hasOutput ? .done : .idle
         }
     }
 
