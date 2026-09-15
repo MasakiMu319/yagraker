@@ -28,7 +28,7 @@ struct PopupView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     inputSection
                     if hasResultArea {
-                        if toolPanel.mode == .grammar, !appState.isLoading {
+                        if toolPanel.mode == .grammar, !appState.grammar.isLoading {
                             Rectangle()
                                 .fill(Theme.hairline)
                                 .frame(height: 1)
@@ -42,7 +42,7 @@ struct PopupView: View {
             }
             .id("\(toolPanel.mode.rawValue)-\(toolPanel.streamSource.id)")
 
-            if let notice = appState.replacedNotice {
+            if let notice = appState.grammar.replacedNotice {
                 noticeBanner(notice)
             }
 
@@ -123,9 +123,9 @@ struct PopupView: View {
 
     @ViewBuilder
     private var inputSection: some View {
-        if toolPanel.mode == .grammar && appState.isLoading {
+        if toolPanel.mode == .grammar && appState.grammar.isLoading {
             EmptyView()
-        } else if toolPanel.mode == .grammar, appState.correctionResult != nil {
+        } else if toolPanel.mode == .grammar, appState.grammar.correctionResult != nil {
             compactSourceSection
         } else if toolPanel.mode == .grammar {
             fullInputSection(isGrammar: true)
@@ -267,21 +267,21 @@ struct PopupView: View {
     }
 
     private var hasResultArea: Bool {
-        (toolPanel.mode == .grammar && appState.isLoading)
-            || appState.errorMessage != nil
-            || (toolPanel.mode == .grammar && appState.correctionResult != nil)
+        (toolPanel.mode == .grammar && appState.grammar.isLoading)
+            || appState.grammar.errorMessage != nil
+            || (toolPanel.mode == .grammar && appState.grammar.correctionResult != nil)
             || (toolPanel.outputMode == toolPanel.mode && toolPanel.generationPhase != .idle)
     }
 
     @ViewBuilder
     private var resultArea: some View {
-        if let error = appState.errorMessage {
+        if let error = appState.grammar.errorMessage {
             errorView(error, retry: toolPanel.mode == .grammar ? { appState.retry() } : nil)
-        } else if toolPanel.mode == .grammar, appState.isLoading {
-            TextScanLoadingView(text: appState.originalText)
+        } else if toolPanel.mode == .grammar, appState.grammar.isLoading {
+            TextScanLoadingView(text: appState.grammar.originalText)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 4)
-        } else if let result = appState.correctionResult, toolPanel.mode == .grammar {
+        } else if let result = appState.grammar.correctionResult, toolPanel.mode == .grammar {
             grammarResult(result)
         } else if toolPanel.outputMode == toolPanel.mode,
                   (toolPanel.mode == .translation || toolPanel.mode == .deepRead) {
@@ -333,9 +333,9 @@ struct PopupView: View {
 
             Group {
                 if grammarViewMode == .diff {
-                    SegmentedTextView(originalText: appState.originalText, corrections: result.corrections)
+                    SegmentedTextView(originalText: appState.grammar.originalText, corrections: result.corrections)
                 } else {
-                    Text(result.splicingCorrections(into: appState.originalText) ?? appState.originalText)
+                    Text(result.splicingCorrections(into: appState.grammar.originalText) ?? appState.grammar.originalText)
                         .font(.system(size: 13))
                         .lineSpacing(3)
                         .foregroundStyle(Theme.ink)

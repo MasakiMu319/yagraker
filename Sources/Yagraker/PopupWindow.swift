@@ -370,7 +370,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     }
 
     private var isShowingGrammarResult: Bool {
-        appState.toolPanelModel.mode == .grammar && appState.correctionResult != nil
+        appState.toolPanelModel.mode == .grammar && appState.grammar.correctionResult != nil
     }
 
     private var dragStartOrigin: NSPoint?

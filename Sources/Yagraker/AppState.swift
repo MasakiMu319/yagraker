@@ -7,14 +7,6 @@ import YagrakerCore
 @MainActor
 final class AppState: ObservableObject {
 
-    // MARK: Grammar state
-
-    @Published var isLoading = false
-    @Published var correctionResult: CorrectionResult?
-    @Published var errorMessage: String?
-    @Published var originalText = ""
-    @Published var replacedNotice: String?
-
     // MARK: Panel state
 
     @Published var isPinned = SettingsStore.shared.isPinned {
@@ -23,8 +15,7 @@ final class AppState: ObservableObject {
             popupWindow.updateMonitors()
         }
     }
-    /// In-memory only, capped at 10 — intentionally never persisted (privacy).
-    @Published private(set) var history: [GrammarHistoryEntry] = []
+    let grammar = GrammarCoordinator()
 
     /// Live panel height, kept in sync by `PopupWindow.windowDidResize` so
     /// content can flex with user-driven resizing.
@@ -40,8 +31,8 @@ final class AppState: ObservableObject {
         }
         model.onModeChanged = { [weak self] _ in
             guard let self else { return }
-            self.errorMessage = nil
-            self.replacedNotice = nil
+            self.grammar.errorMessage = nil
+            self.grammar.replacedNotice = nil
             Task { @MainActor [weak self] in
                 await Task.yield()
                 guard let self, self.popupWindow.isVisible else { return }
@@ -55,13 +46,13 @@ final class AppState: ObservableObject {
 
             if trimmed.isEmpty {
                 var needsSettle = false
-                if self.correctionResult != nil {
-                    self.correctionResult = nil
-                    self.originalText = ""
+                if self.grammar.correctionResult != nil {
+                    self.grammar.correctionResult = nil
+                    self.grammar.originalText = ""
                     needsSettle = true
                 }
-                if self.replacedNotice != nil {
-                    self.replacedNotice = nil
+                if self.grammar.replacedNotice != nil {
+                    self.grammar.replacedNotice = nil
                 }
                 if self.toolPanelModel.hasOutput || self.toolPanelModel.generationPhase != .idle {
                     self.toolPanelModel.cancelGeneration(clearOutput: true)
@@ -74,10 +65,10 @@ final class AppState: ObservableObject {
             }
 
             if self.toolPanelModel.mode == .grammar,
-               self.correctionResult != nil,
-               newInput != self.originalText {
-                self.correctionResult = nil
-                self.replacedNotice = nil
+               self.grammar.correctionResult != nil,
+               newInput != self.grammar.originalText {
+                self.grammar.correctionResult = nil
+                self.grammar.replacedNotice = nil
                 if self.popupWindow.isVisible {
                     self.popupWindow.scheduleHeightSettle()
                 }
@@ -99,9 +90,6 @@ final class AppState: ObservableObject {
     lazy var popupWindow = PopupWindow(appState: self)
     var settingsController: SettingsWindowController?
 
-    private var grammarTask: Task<Void, Never>?
-    private var lastRequest: GrammarCheckRequest?
-    private var replacementTargetApplication: NSRunningApplication?
     private let externalAppContext = ExternalAppContext()
     private lazy var selectionCoordinator = SelectionCoordinator(externalAppContext: externalAppContext)
 
@@ -161,15 +149,15 @@ final class AppState: ObservableObject {
     /// Open the panel in a mode without running anything.
     func openTool(_ mode: ToolPanelModel.Mode) {
         toolPanelModel.selectMode(mode)
-        errorMessage = nil
-        replacedNotice = nil
+        grammar.errorMessage = nil
+        grammar.replacedNotice = nil
         popupWindow.show()
     }
 
     private func startTranslation(text: String, anchorRect: NSRect? = nil) {
         toolPanelModel.activate(mode: .translation, input: text, clearResults: true)
-        errorMessage = nil
-        replacedNotice = nil
+        grammar.errorMessage = nil
+        grammar.replacedNotice = nil
         popupWindow.show(anchoringTo: anchorRect)
         toolPanelModel.startGeneration(mode: .translation, text: text)
     }
@@ -182,135 +170,60 @@ final class AppState: ObservableObject {
         replacementTarget: NSRunningApplication? = nil,
         anchorRect: NSRect? = nil
     ) {
-        replacementTargetApplication = replacementTarget
-        originalText = text
-        correctionResult = nil
-        errorMessage = nil
-        replacedNotice = nil
-        toolPanelModel.activate(mode: .grammar, input: text, clearResults: true)
-        checkGrammar(
-            request: GrammarCheckRequest(text: text, reader: L10n.shared.reader),
-            providerOverride: providerOverride,
-            anchorRect: anchorRect
-        )
+        do {
+            let kind = providerOverride ?? toolPanelModel.provider(for: .grammar)
+            let resolved = try ProviderResolver.resolve(kind, task: .grammar)
+            toolPanelModel.activate(mode: .grammar, input: text, clearResults: true)
+            grammar.start(text: text, resolved: resolved, replacementTarget: replacementTarget)
+            popupWindow.show(anchoringTo: anchorRect)
+        } catch {
+            grammar.errorMessage = L10n.shared.errorText(error)
+            popupWindow.show(anchoringTo: anchorRect)
+        }
     }
 
     func checkGrammar(request: GrammarCheckRequest, providerOverride: LLMProviderKind?, anchorRect: NSRect? = nil) {
-        grammarTask?.cancel()
-        let kind = providerOverride ?? toolPanelModel.provider(for: .grammar)
         do {
+            let kind = providerOverride ?? toolPanelModel.provider(for: .grammar)
             let resolved = try ProviderResolver.resolve(kind, task: .grammar)
-            lastRequest = request
-            isLoading = true
-            errorMessage = nil
+            grammar.check(request: request, resolved: resolved)
             popupWindow.show(anchoringTo: anchorRect)
-            grammarTask = Task { [weak self] in
-                guard let self else { return }
-                do {
-                    let result = try await resolved.service.checkGrammar(
-                        request: request, apiKey: resolved.apiKey, model: resolved.model
-                    )
-                    guard !Task.isCancelled else { return }
-                    // Spans are matched literally against the submission; when
-                    // none match there is nothing safe to show or paste back.
-                    guard !result.hasCorrections || result.splicingCorrections(into: request.text) != nil else {
-                        throw LLMError.invalidResponse
-                    }
-                    self.isLoading = false
-                    self.correctionResult = result
-                    self.recordHistory(result)
-                    self.popupWindow.scheduleHeightSettle()
-                } catch {
-                    guard !Task.isCancelled else { return }
-                    self.isLoading = false
-                    self.errorMessage = L10n.shared.errorText(error)
-                }
-            }
         } catch {
-            isLoading = false
-            errorMessage = L10n.shared.errorText(error)
+            grammar.errorMessage = L10n.shared.errorText(error)
             popupWindow.show(anchoringTo: anchorRect)
         }
     }
 
     func retry() {
-        // Re-check the current input — the user may have edited it in the
-        // result view. Keep the replacement target so Accept can still paste
-        // back into the source app.
-        let input = toolPanelModel.input.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !input.isEmpty {
-            startGrammarCheck(
-                text: toolPanelModel.input,
-                providerOverride: nil,
-                replacementTarget: replacementTargetApplication
-            )
-        } else if let lastRequest {
-            checkGrammar(request: lastRequest, providerOverride: nil)
+        do {
+            let kind = toolPanelModel.provider(for: .grammar)
+            let resolved = try ProviderResolver.resolve(kind, task: .grammar)
+            grammar.retry(currentInput: toolPanelModel.input, resolved: resolved)
+        } catch {
+            grammar.errorMessage = L10n.shared.errorText(error)
         }
     }
 
     func cancelGrammarCheck(clearResults: Bool) {
-        grammarTask?.cancel()
-        grammarTask = nil
-        isLoading = false
-        if clearResults {
-            correctionResult = nil
-            originalText = ""
-        }
+        grammar.cancel(clearResults: clearResults)
     }
 
     // MARK: - Grammar result actions
 
-    /// Accept: reactivate the source app, then paste over its retained selection.
-    /// Manual/history checks have no safe source target and therefore copy instead.
     func replaceOriginalText() {
-        guard let result = correctionResult, result.hasCorrections else { return }
-        let correctedText = textForReplacement(result)
-        let target = replacementTargetApplication
-
-        Task { [weak self] in
-            guard let self else { return }
-            var didPaste = false
-            if let target,
-               !target.isTerminated,
-               target.processIdentifier != ProcessInfo.processInfo.processIdentifier,
-               target.activate(options: []) {
-                for _ in 0..<20 {
-                    if NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier {
-                        TextCapture.pasteText(correctedText, targetPid: target.processIdentifier)
-                        didPaste = true
-                        break
-                    }
-                    try? await Task.sleep(nanoseconds: 25_000_000)
-                }
-            }
-            if !didPaste {
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(correctedText, forType: .string)
-            }
-
-            replacementTargetApplication = nil
-            if didPaste, let first = result.corrections.first {
-                replacedNotice = L10n.shared.t("popup.replacedPrefix")
-                    + first.original
-                    + L10n.shared.t("popup.replacedInfix")
-                    + first.corrected
-            } else {
-                replacedNotice = L10n.shared.t("popup.copiedCorrected")
-            }
-            scheduleDismissAfterNotice()
+        grammar.replaceOriginalText { [weak self] _ in
+            self?.scheduleDismissAfterNotice()
         }
     }
 
     private func scheduleDismissAfterNotice() {
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 1_400_000_000)
-            guard let self, self.replacedNotice != nil else { return }
+            guard let self, self.grammar.replacedNotice != nil else { return }
             if self.isPinned {
-                self.replacedNotice = nil
-                self.correctionResult = nil
-                self.originalText = ""
+                self.grammar.replacedNotice = nil
+                self.grammar.correctionResult = nil
+                self.grammar.originalText = ""
                 self.toolPanelModel.input = ""
                 if self.popupWindow.isVisible {
                     self.popupWindow.scheduleHeightSettle()
@@ -322,50 +235,27 @@ final class AppState: ObservableObject {
     }
 
     func copyCorrectedText() {
-        guard let result = correctionResult else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(textForReplacement(result), forType: .string)
-    }
-
-    /// Text written back into the source document. Splicing keeps everything
-    /// outside the corrected spans byte-identical to what the user had.
-    private func textForReplacement(_ result: CorrectionResult) -> String {
-        result.splicingCorrections(into: originalText) ?? originalText
-    }
-
-    // MARK: - History (in-memory, last 10)
-
-    private func recordHistory(_ result: CorrectionResult) {
-        let entry = GrammarHistoryEntry(originalText: originalText, result: result)
-        history.insert(entry, at: 0)
-        if history.count > 10 {
-            history.removeLast(history.count - 10)
-        }
+        grammar.copyCorrectedText()
     }
 
     func openHistory(_ entry: GrammarHistoryEntry) {
-        replacementTargetApplication = nil
         toolPanelModel.activate(mode: .grammar, input: entry.originalText, clearResults: true)
-        originalText = entry.originalText
-        correctionResult = entry.result
-        errorMessage = nil
-        replacedNotice = nil
+        grammar.openHistory(entry)
         popupWindow.show()
     }
 
     func clearHistory() {
-        history = []
+        grammar.clearHistory()
     }
 
     func clearAll() {
         cancelGrammarCheck(clearResults: true)
         toolPanelModel.cancelGeneration(clearOutput: true)
         toolPanelModel.input = ""
-        originalText = ""
-        correctionResult = nil
-        errorMessage = nil
-        replacedNotice = nil
+        grammar.originalText = ""
+        grammar.correctionResult = nil
+        grammar.errorMessage = nil
+        grammar.replacedNotice = nil
         if popupWindow.isVisible {
             popupWindow.scheduleHeightSettle()
             popupWindow.focusInput()
@@ -376,7 +266,7 @@ final class AppState: ObservableObject {
 
     func togglePin() { isPinned.toggle() }
     func dismissPopup(restoreFocus: Bool = true) {
-        if isLoading { cancelGrammarCheck(clearResults: false) }
+        if grammar.isLoading { grammar.cancel(clearResults: false) }
         if toolPanelModel.isStreaming { toolPanelModel.cancelGeneration(clearOutput: true) }
         popupWindow.close()
         if restoreFocus { restoreExternalApplicationIfNeeded() }
@@ -393,13 +283,13 @@ final class AppState: ObservableObject {
 
     func showConfigurationError(for mode: ToolPanelModel.Mode, anchorRect: NSRect? = nil) {
         toolPanelModel.selectMode(mode)
-        errorMessage = L10n.shared.errorText(LLMError.noProvider)
+        grammar.errorMessage = L10n.shared.errorText(LLMError.noProvider)
         popupWindow.show(anchoringTo: anchorRect)
     }
 
     private func showNoTextError(for mode: ToolPanelModel.Mode, anchorRect: NSRect? = nil) {
         toolPanelModel.selectMode(mode)
-        errorMessage = L10n.shared.t("error.noTranslatableText")
+        grammar.errorMessage = L10n.shared.t("error.noTranslatableText")
         popupWindow.show(anchoringTo: anchorRect)
     }
 

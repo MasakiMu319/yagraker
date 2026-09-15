@@ -176,8 +176,8 @@ final class YagrakerUITests: XCTestCase {
             let source = "Harnesses make the client-server distinction clear."
             let appState = AppState()
             appState.toolPanelModel.activate(mode: .grammar, input: source, clearResults: true)
-            appState.originalText = source
-            appState.correctionResult = CorrectionResult(
+            appState.grammar.originalText = source
+            appState.grammar.correctionResult = CorrectionResult(
                 corrections: [],
                 tip: ""
             )
@@ -1135,8 +1135,8 @@ final class YagrakerUITests: XCTestCase {
             initialTextView.setSelectedRange(end)
             initialTextView.scrollRangeToVisible(end)
 
-            appState.originalText = source
-            appState.correctionResult = CorrectionResult(
+            appState.grammar.originalText = source
+            appState.grammar.correctionResult = CorrectionResult(
                 corrections: [Correction(original: "Need maybe", corrected: "Maybe I need to")],
                 tip: "Keep the explanation focused."
             )
@@ -1252,26 +1252,26 @@ final class YagrakerUITests: XCTestCase {
             let appState = AppState()
 
             // 1. Grammar Mode: result is cleared when input is modified
-            appState.originalText = "She don't like apples"
+            appState.grammar.originalText = "She don't like apples"
             appState.toolPanelModel.input = "She don't like apples"
-            appState.correctionResult = CorrectionResult(
+            appState.grammar.correctionResult = CorrectionResult(
                 corrections: [Correction(original: "don't", corrected: "doesn't")],
                 tip: "Use doesn't for third person singular."
             )
-            XCTAssertNotNil(appState.correctionResult)
+            XCTAssertNotNil(appState.grammar.correctionResult)
 
             // Modifying input clears the stale grammar correction
             appState.toolPanelModel.input = "She don't like oranges"
-            XCTAssertNil(appState.correctionResult)
+            XCTAssertNil(appState.grammar.correctionResult)
 
             // 2. ClearAll resets everything to clean state
-            appState.originalText = "Some text"
-            appState.correctionResult = CorrectionResult(corrections: [], tip: "")
+            appState.grammar.originalText = "Some text"
+            appState.grammar.correctionResult = CorrectionResult(corrections: [], tip: "")
             appState.toolPanelModel.input = "Some text"
             appState.clearAll()
             XCTAssertEqual(appState.toolPanelModel.input, "")
-            XCTAssertNil(appState.correctionResult)
-            XCTAssertEqual(appState.originalText, "")
+            XCTAssertNil(appState.grammar.correctionResult)
+            XCTAssertEqual(appState.grammar.originalText, "")
         }
     }
 

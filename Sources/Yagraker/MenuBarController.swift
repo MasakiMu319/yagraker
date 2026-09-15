@@ -128,12 +128,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func recentMenu() -> NSMenu {
         let submenu = NSMenu()
         let l10n = L10n.shared
-        if appState.history.isEmpty {
+        if appState.grammar.history.isEmpty {
             let empty = NSMenuItem(title: l10n.t("menu.noRecent"), action: nil, keyEquivalent: "")
             empty.isEnabled = false
             submenu.addItem(empty)
         } else {
-            for (index, entry) in appState.history.enumerated() {
+            for (index, entry) in appState.grammar.history.enumerated() {
                 let oneLine = entry.originalText
                     .replacingOccurrences(of: "\n", with: " ")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -198,8 +198,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func clearHistory() { appState.clearHistory() }
 
     @objc private func openHistoryEntry(_ sender: NSMenuItem) {
-        guard appState.history.indices.contains(sender.tag) else { return }
-        appState.openHistory(appState.history[sender.tag])
+        guard appState.grammar.history.indices.contains(sender.tag) else { return }
+        appState.openHistory(appState.grammar.history[sender.tag])
     }
 
     @objc private func quit() {
