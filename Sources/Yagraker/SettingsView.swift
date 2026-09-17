@@ -86,8 +86,6 @@ struct SettingsTabBar: View {
 }
 
 /// Four-pane settings surface.
-
-/// Four-pane settings surface.
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var l10n: L10n
@@ -96,40 +94,8 @@ struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
     @State private var accessibilityGranted = SelectionReader.isAccessibilityGranted
 
-    // Provider editor state is loaded only when Settings opens.
-    @State private var routeProviders: [LLMTask: LLMProviderKind]
-    @State private var credentialProvider: LLMProviderKind
+    @StateObject private var viewModel = SettingsViewModel()
     @State private var isAPIKeyVisible = false
-    @State private var providerDrafts: [LLMProviderKind: ProviderDraft]
-    @State private var originalAPIKeys: [LLMProviderKind: String]
-    @State private var modelCatalogs: [LLMProviderKind: ModelCatalogState] = [:]
-    @State private var catalogRequestIDs: [LLMProviderKind: UUID] = [:]
-    @State private var validationTask: LLMTask = .translation
-    @State private var isValidating = false
-    @State private var validationMessage: String?
-    @State private var validationSucceeded = false
-    @State private var saveMessage: String?
-
-    init() {
-        let settings = SettingsStore.shared
-        let routes = Dictionary(uniqueKeysWithValues: LLMTask.allCases.map {
-            ($0, settings.toolPanelProvider(for: $0))
-        })
-        let drafts = Dictionary(uniqueKeysWithValues: LLMProviderKind.allCases.map {
-            ($0, ProviderDraft(provider: $0, settings: settings))
-        })
-        _routeProviders = State(initialValue: routes)
-        _credentialProvider = State(initialValue: routes[.translation] ?? .gemini)
-        _providerDrafts = State(initialValue: drafts)
-        _originalAPIKeys = State(initialValue: drafts.mapValues(\.apiKey))
-        let translationProvider = routes[.translation] ?? .gemini
-        let translationModel = drafts[translationProvider]?.model(for: .translation) ?? ""
-        _validationTask = State(
-            initialValue: translationModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? .grammar
-                : .translation
-        )
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -207,17 +173,17 @@ struct SettingsView: View {
                 .background(Theme.paper)
         }
         .onAppear {
-            for provider in Set(routeProviders.values) {
+            for provider in Set(viewModel.routeProviders.values) {
                 ensureModelsLoaded(for: provider)
             }
         }
-        .onChange(of: routeProviders) { oldRoutes, newRoutes in
+        .onChange(of: viewModel.routeProviders) { oldRoutes, newRoutes in
             for task in LLMTask.allCases {
                 guard oldRoutes[task] != newRoutes[task], let provider = newRoutes[task] else { continue }
                 ensureModelsLoaded(for: provider)
             }
         }
-        .onChange(of: providerDrafts) { oldDrafts, newDrafts in
+        .onChange(of: viewModel.providerDrafts) { oldDrafts, newDrafts in
             for provider in LLMProviderKind.allCases {
                 guard catalogInput(for: provider, drafts: oldDrafts)
                     != catalogInput(for: provider, drafts: newDrafts) else { continue }
@@ -271,7 +237,7 @@ struct SettingsView: View {
     private var providerCredentialsCard: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                ProviderIcon(provider: credentialProvider, size: 16)
+                ProviderIcon(provider: viewModel.credentialProvider, size: 16)
                     .frame(width: 28, height: 28)
                     .background(Circle().fill(Theme.accentSoft))
                 VStack(alignment: .leading, spacing: 2) {
@@ -284,14 +250,14 @@ struct SettingsView: View {
                 }
                 Spacer(minLength: 10)
                 ThemedMenu(
-                    title: providerName(credentialProvider),
+                    title: providerName(viewModel.credentialProvider),
                     options: LLMProviderKind.allCases,
                     label: { providerName($0) },
-                    isSelected: { $0 == credentialProvider },
+                    isSelected: { $0 == viewModel.credentialProvider },
                     width: 176,
                     accessibilityLabel: l10n.t("settings.provider.editProvider"),
                     onSelect: {
-                        credentialProvider = $0
+                        viewModel.credentialProvider = $0
                         isAPIKeyVisible = false
                     }
                 )
@@ -299,12 +265,12 @@ struct SettingsView: View {
             .padding(12)
             providerDivider
 
-            if credentialProvider == .custom {
+            if viewModel.credentialProvider == .custom {
                 providerField(l10n.t("settings.provider.baseURL")) {
                     VStack(alignment: .leading, spacing: 4) {
                         TextField(
                             "https://api.example.com/v1",
-                            text: draftBinding(credentialProvider, keyPath: \.customBaseURL)
+                            text: draftBinding(viewModel.credentialProvider, keyPath: \.customBaseURL)
                         )
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel(l10n.t("settings.provider.baseURL"))
@@ -317,12 +283,12 @@ struct SettingsView: View {
                 providerDivider
             }
 
-            if credentialProvider == .qwen {
+            if viewModel.credentialProvider == .qwen {
                 providerField(l10n.t("settings.provider.baseURL")) {
                     VStack(alignment: .leading, spacing: 4) {
                         TextField(
                             QwenService.defaultBaseURL,
-                            text: draftBinding(credentialProvider, keyPath: \.qwenBaseURL)
+                            text: draftBinding(viewModel.credentialProvider, keyPath: \.qwenBaseURL)
                         )
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel(l10n.t("settings.provider.baseURL"))
@@ -335,9 +301,9 @@ struct SettingsView: View {
                 providerDivider
             }
 
-            if credentialProvider == .mimo {
+            if viewModel.credentialProvider == .mimo {
                 providerField(l10n.t("settings.provider.cluster")) {
-                    let cluster = draftBinding(credentialProvider, keyPath: \.mimoCluster)
+                    let cluster = draftBinding(viewModel.credentialProvider, keyPath: \.mimoCluster)
                     ThemedMenu(
                         title: clusterName(cluster.wrappedValue),
                         options: MiMoCluster.allCases,
@@ -357,19 +323,19 @@ struct SettingsView: View {
                         if isAPIKeyVisible {
                             TextField(
                                 "••••••••••••••••",
-                                text: draftBinding(credentialProvider, keyPath: \.apiKey)
+                                text: draftBinding(viewModel.credentialProvider, keyPath: \.apiKey)
                             )
                         } else {
                             SecureField(
                                 "••••••••••••••••",
-                                text: draftBinding(credentialProvider, keyPath: \.apiKey)
+                                text: draftBinding(viewModel.credentialProvider, keyPath: \.apiKey)
                             )
                         }
                     }
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel(l10n.t("settings.provider.apiKey"))
                     .onSubmit {
-                        refreshModels(for: credentialProvider)
+                        refreshModels(for: viewModel.credentialProvider)
                     }
 
                     Button {
@@ -387,7 +353,7 @@ struct SettingsView: View {
             providerDivider
 
             providerField(l10n.t("settings.provider.endpoint")) {
-                Text(endpointLabel(for: credentialProvider))
+                Text(endpointLabel(for: viewModel.credentialProvider))
                     .font(.system(size: 10.5, design: .monospaced))
                     .foregroundStyle(Theme.inkSecondary)
                     .textSelection(.enabled)
@@ -399,11 +365,11 @@ struct SettingsView: View {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .fill(Theme.ink.opacity(0.04))
                     )
-                    .help(endpointLabel(for: credentialProvider))
+                    .help(endpointLabel(for: viewModel.credentialProvider))
             }
             providerDivider
 
-            providerHelp(for: credentialProvider)
+            providerHelp(for: viewModel.credentialProvider)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
         }
@@ -434,7 +400,7 @@ struct SettingsView: View {
             Button {
                 refreshModels(for: provider)
             } label: {
-                if case .loading = modelCatalogs[provider] {
+                if case .loading = viewModel.modelCatalogs[provider] {
                     ProgressView()
                         .controlSize(.small)
                 } else {
@@ -447,7 +413,7 @@ struct SettingsView: View {
             .help(l10n.t("settings.provider.refreshModels"))
             .accessibilityLabel(l10n.t("settings.provider.refreshModels"))
             .disabled({
-                if case .loading = modelCatalogs[provider] { return true }
+                if case .loading = viewModel.modelCatalogs[provider] { return true }
                 return false
             }())
         }
@@ -509,17 +475,17 @@ struct SettingsView: View {
 
     private var providerActions: some View {
         HStack(alignment: .center, spacing: 8) {
-            if let validationMessage {
+            if let validationMessage = viewModel.validationMessage {
                 HStack(alignment: .top, spacing: 7) {
-                    Image(systemName: validationSucceeded ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .foregroundStyle(validationSucceeded ? Theme.fixed : Theme.wrong)
+                    Image(systemName: viewModel.validationSucceeded ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .foregroundStyle(viewModel.validationSucceeded ? Theme.fixed : Theme.wrong)
                     Text(validationMessage)
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.ink)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-            } else if let saveMessage {
+            } else if let saveMessage = viewModel.saveMessage {
                 Label(saveMessage, systemImage: "checkmark.circle.fill")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.fixed)
@@ -528,24 +494,24 @@ struct SettingsView: View {
             Spacer(minLength: 12)
 
             ThemedMenu(
-                title: taskName(validationTask),
+                title: taskName(viewModel.validationTask),
                 options: LLMTask.allCases,
                 label: { taskName($0) },
-                isSelected: { $0 == validationTask },
+                isSelected: { $0 == viewModel.validationTask },
                 width: 132,
                 accessibilityLabel: l10n.t("settings.provider.validateTask"),
-                onSelect: { validationTask = $0 }
+                onSelect: { viewModel.validationTask = $0 }
             )
 
             Button(l10n.t("settings.provider.save")) {
                 persistProvider(showFeedback: true)
             }
-            Button(isValidating ? l10n.t("settings.provider.validating") : validateButtonTitle) {
+            Button(viewModel.isValidating ? l10n.t("settings.provider.validating") : validateButtonTitle) {
                 validateProvider()
             }
             .buttonStyle(.borderedProminent)
             .tint(Theme.accent)
-            .disabled(isValidating)
+            .disabled(viewModel.isValidating)
             .keyboardShortcut(.defaultAction)
         }
     }
@@ -576,67 +542,14 @@ struct SettingsView: View {
     // MARK: Provider actions
 
     private func persistProvider(showFeedback: Bool) {
-        let settings = SettingsStore.shared
-        for provider in LLMProviderKind.allCases {
-            guard let draft = providerDrafts[provider] else { continue }
-            for task in LLMTask.allCases {
-                settings.setModel(
-                    draft.model(for: task).trimmingCharacters(in: .whitespacesAndNewlines),
-                    for: provider,
-                    task: task
-                )
-            }
-            let normalizedKey = draft.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            if normalizedKey != originalAPIKeys[provider] {
-                KeychainStore.shared.setAPIKey(normalizedKey, for: provider)
-            }
-        }
-        if let custom = providerDrafts[.custom] {
-            settings.customBaseURL = custom.customBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if let qwen = providerDrafts[.qwen] {
-            settings.qwenBaseURL = qwen.qwenBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if let mimo = providerDrafts[.mimo] {
-            settings.mimoCluster = mimo.mimoCluster
-            MiMoService.shared.setCluster(mimo.mimoCluster)
-        }
-        for task in LLMTask.allCases {
-            settings.setToolPanelProvider(routeProvider(for: task), for: task)
-        }
-        originalAPIKeys = providerDrafts.mapValues { $0.apiKey.trimmingCharacters(in: .whitespacesAndNewlines) }
-        appState.toolPanelModel.refreshConfiguration()
-        for provider in Set(routeProviders.values) {
-            ensureModelsLoaded(for: provider)
-        }
-        if showFeedback {
-            saveMessage = l10n.t("settings.provider.saved")
-            validationMessage = nil
+        viewModel.persistProvider(showFeedback: showFeedback, l10n: l10n) {
+            appState.toolPanelModel.refreshConfiguration()
         }
     }
 
     private func validateProvider() {
-        persistProvider(showFeedback: false)
-        isValidating = true
-        validationMessage = nil
-        validationSucceeded = false
-        saveMessage = nil
-
-        let provider = routeProvider(for: validationTask)
-        Task { @MainActor in
-            do {
-                let resolved = try ProviderResolver.resolve(provider, task: validationTask)
-                let endpoint = try await resolved.service.validate(
-                    apiKey: resolved.apiKey,
-                    model: resolved.model
-                )
-                validationMessage = l10n.t("provider.connected", endpoint)
-                validationSucceeded = true
-            } catch {
-                validationMessage = l10n.errorText(error)
-                validationSucceeded = false
-            }
-            isValidating = false
+        viewModel.validateProvider(l10n: l10n) {
+            appState.toolPanelModel.refreshConfiguration()
         }
     }
 
@@ -645,38 +558,38 @@ struct SettingsView: View {
         keyPath: WritableKeyPath<ProviderDraft, Value>
     ) -> Binding<Value> {
         Binding(
-            get: { providerDrafts[provider]![keyPath: keyPath] },
+            get: { viewModel.providerDrafts[provider]![keyPath: keyPath] },
             set: { value in
-                guard var draft = providerDrafts[provider] else { return }
+                guard var draft = viewModel.providerDrafts[provider] else { return }
                 draft[keyPath: keyPath] = value
-                providerDrafts[provider] = draft
+                viewModel.providerDrafts[provider] = draft
             }
         )
     }
 
     private func routeProvider(for task: LLMTask) -> LLMProviderKind {
-        routeProviders[task] ?? .gemini
+        viewModel.routeProviders[task] ?? .gemini
     }
 
     private func routeBinding(for task: LLMTask) -> Binding<LLMProviderKind> {
         Binding(
             get: { routeProvider(for: task) },
-            set: { routeProviders[task] = $0 }
+            set: { viewModel.routeProviders[task] = $0 }
         )
     }
 
     private func draftModel(for provider: LLMProviderKind, task: LLMTask) -> String {
-        providerDrafts[provider]?.model(for: task)
+        viewModel.providerDrafts[provider]?.model(for: task)
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private func modelBinding(for provider: LLMProviderKind, task: LLMTask) -> Binding<String> {
         Binding(
-            get: { providerDrafts[provider]?.model(for: task) ?? "" },
+            get: { viewModel.providerDrafts[provider]?.model(for: task) ?? "" },
             set: { model in
-                guard var draft = providerDrafts[provider] else { return }
+                guard var draft = viewModel.providerDrafts[provider] else { return }
                 draft.setModel(model, for: task)
-                providerDrafts[provider] = draft
+                viewModel.providerDrafts[provider] = draft
             }
         )
     }
@@ -686,74 +599,11 @@ struct SettingsView: View {
     }
 
     private func ensureModelsLoaded(for provider: LLMProviderKind) {
-        switch modelCatalogs[provider] {
-        case .loading, .loaded:
-            return
-        default:
-            break
-        }
-        refreshModels(for: provider)
+        viewModel.ensureModelsLoaded(for: provider, l10n: l10n)
     }
 
     private func refreshModels(for provider: LLMProviderKind) {
-        let requestID = UUID()
-        catalogRequestIDs[provider] = requestID
-        let key = providerDrafts[provider]?.apiKey.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !key.isEmpty else {
-            modelCatalogs[provider] = .failed(l10n.t("settings.provider.modelsNeedKey"))
-            return
-        }
-
-        modelCatalogs[provider] = .loading
-        let service = catalogService(for: provider)
-
-        Task { @MainActor in
-            do {
-                let models = try await service.listModels(apiKey: key)
-                guard catalogRequestIDs[provider] == requestID else { return }
-                modelCatalogs[provider] = .loaded(normalizeModels(models))
-            } catch {
-                guard catalogRequestIDs[provider] == requestID else { return }
-                modelCatalogs[provider] = .failed(l10n.errorText(error))
-            }
-        }
-    }
-
-    private func catalogService(for provider: LLMProviderKind) -> any LLMServicing {
-        let draft = providerDrafts[provider]!
-        switch provider {
-        case .gemini:
-            return GeminiService()
-        case .deepseek:
-            return DeepSeekService()
-        case .mimo:
-            let service = MiMoService()
-            service.setCluster(draft.mimoCluster)
-            return service
-        case .qwen:
-            let service = QwenService()
-            let base = draft.qwenBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-            service.baseURLProvider = {
-                base.isEmpty ? QwenService.defaultBaseURL : base
-            }
-            return service
-        case .custom:
-            let service = CustomService()
-            let base = draft.customBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-            service.baseURLProvider = { base }
-            return service
-        }
-    }
-
-    private func normalizeModels(_ models: [LLMModel]) -> [LLMModel] {
-        var seen = Set<String>()
-        return models
-            .compactMap { model in
-                let id = model.id.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !id.isEmpty, seen.insert(id).inserted else { return nil }
-                return LLMModel(id: id, displayName: model.displayName, description: model.description)
-            }
-            .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
+        viewModel.refreshModels(for: provider, l10n: l10n)
     }
 
     private func modelOptions(
@@ -761,7 +611,7 @@ struct SettingsView: View {
         task: LLMTask
     ) -> [LLMModel] {
         let catalog: [LLMModel]
-        if case .loaded(let loaded) = modelCatalogs[provider] {
+        if case .loaded(let loaded) = viewModel.modelCatalogs[provider] {
             catalog = loaded
         } else {
             catalog = []
@@ -781,7 +631,7 @@ struct SettingsView: View {
     }
 
     private func modelCatalogMessage(for provider: LLMProviderKind, task: LLMTask) -> String {
-        switch modelCatalogs[provider] {
+        switch viewModel.modelCatalogs[provider] {
         case .failed(let message): return message
         case .loading: return l10n.t("settings.provider.loadingModels")
         case .loaded:
@@ -789,7 +639,7 @@ struct SettingsView: View {
                 ? l10n.t("settings.provider.noModels")
                 : l10n.t("settings.provider.refreshModelsHint")
         case .idle, .none:
-            let hasKey = !(providerDrafts[provider]?.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            let hasKey = !(viewModel.providerDrafts[provider]?.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
             return hasKey
                 ? l10n.t("settings.provider.refreshModelsHint")
                 : l10n.t("settings.provider.modelsNeedKey")
@@ -797,7 +647,7 @@ struct SettingsView: View {
     }
 
     private func modelCatalogStatus(for provider: LLMProviderKind, task: LLMTask) -> String? {
-        switch modelCatalogs[provider] {
+        switch viewModel.modelCatalogs[provider] {
         case .failed(let message): return message
         case .loading: return l10n.t("settings.provider.loadingModels")
         case .loaded:
@@ -810,8 +660,7 @@ struct SettingsView: View {
     }
 
     private func invalidateModelCatalog(for provider: LLMProviderKind) {
-        catalogRequestIDs[provider] = UUID()
-        modelCatalogs[provider] = .idle
+        viewModel.invalidateModelCatalog(for: provider)
     }
 
     private func catalogInput(
@@ -873,7 +722,7 @@ struct SettingsView: View {
     }
 
     private func endpointLabel(for provider: LLMProviderKind) -> String {
-        let draft = providerDrafts[provider]!
+        let draft = viewModel.providerDrafts[provider]!
         switch provider {
         case .gemini:
             return "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -912,7 +761,7 @@ struct SettingsView: View {
     }
 
     private var validateButtonTitle: String {
-        l10n.t("settings.provider.validateTaskButton", taskName(validationTask))
+        l10n.t("settings.provider.validateTaskButton", taskName(viewModel.validationTask))
     }
 
     private var appVersion: String {
