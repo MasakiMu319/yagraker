@@ -81,7 +81,12 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     // MARK: Show / close
 
     func show(anchoringTo anchorRect: NSRect? = nil) {
-        positionPanel(anchoringTo: anchorRect)
+        // State updates (for example grammar submit) re-show the panel without an
+        // anchor; only reposition when revealing it or following a new selection.
+        if !panel.isVisible || anchorRect != nil {
+            stopFrameAnimation()
+            positionPanel(anchoringTo: anchorRect)
+        }
         if !Self.isTestingEnvironment {
             NSApp.activate()
             panel.makeKeyAndOrderFront(nil)

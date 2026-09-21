@@ -846,6 +846,52 @@ final class YagrakerUITests: XCTestCase {
         }
     }
 
+    /// Submitting grammar re-shows the visible popup without an explicit anchor;
+    /// that path must not restore a stale saved frame after a background drag.
+    func testVisiblePopupShowDoesNotRestoreStalePositionAfterBackgroundMove() throws {
+        try MainActor.assumeIsolated {
+            _ = NSApplication.shared
+            let store = SettingsStore.shared
+            let previousSize = store.panelSize
+            let previousTopLeft = store.panelTopLeft
+            let previousPinned = store.isPinned
+            let screen = try XCTUnwrap(NSScreen.main)
+            let savedTopLeft = CGPoint(x: screen.visibleFrame.minX + 80, y: screen.visibleFrame.maxY - 80)
+            store.panelSize = NSSize(width: PopupWindow.minimumWidth, height: 300)
+            store.panelTopLeft = savedTopLeft
+            store.isPinned = true
+            defer {
+                store.panelSize = previousSize
+                store.panelTopLeft = previousTopLeft
+                store.isPinned = previousPinned
+            }
+
+            let appState = AppState()
+            appState.isPinned = true
+            appState.toolPanelModel.activate(mode: .translation, input: "Text to translate", clearResults: true)
+            appState.popupWindow.show()
+            defer { appState.dismissPopup(restoreFocus: false) }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.45))
+            NSApp.windows.forEach { $0.contentView?.layoutSubtreeIfNeeded() }
+
+            let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
+            panel.setFrameOrigin(NSPoint(x: panel.frame.minX + 120, y: panel.frame.minY - 60))
+            waitForViewUpdate()
+            let movedTopLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+            XCTAssertNotEqual(movedTopLeft.x, savedTopLeft.x, accuracy: 1)
+            XCTAssertEqual(store.panelTopLeft?.x ?? .nan, savedTopLeft.x, accuracy: 1)
+
+            // The grammar submit path currently calls show(anchoringTo: nil).
+            appState.toolPanelModel.selectMode(.grammar)
+            appState.popupWindow.show()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.45))
+            NSApp.windows.forEach { $0.contentView?.layoutSubtreeIfNeeded() }
+
+            XCTAssertEqual(panel.frame.minX, movedTopLeft.x, accuracy: 1)
+            XCTAssertEqual(panel.frame.maxY, movedTopLeft.y, accuracy: 1)
+        }
+    }
+
     func testWorkspaceModesExposeEditableInput() throws {
         try MainActor.assumeIsolated {
             _ = NSApplication.shared
