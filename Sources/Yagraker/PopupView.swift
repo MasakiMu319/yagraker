@@ -276,7 +276,11 @@ struct PopupView: View {
     @ViewBuilder
     private var resultArea: some View {
         if let error = grammar.errorMessage {
-            errorView(error, retry: toolPanel.mode == .grammar ? { appState.retry() } : nil)
+            PopupErrorView(
+                message: error,
+                retry: toolPanel.mode == .grammar ? { appState.retry() } : nil,
+                onConfigure: { appState.openSettings() }
+            )
         } else if toolPanel.mode == .grammar, grammar.isLoading {
             TextScanLoadingView(text: grammar.originalText)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -295,141 +299,20 @@ struct PopupView: View {
             )
         } else if toolPanel.outputMode == toolPanel.mode,
                   (toolPanel.mode == .translation || toolPanel.mode == .deepRead) {
-            generationResult
+            PopupGenerationResultView(
+                toolPanel: toolPanel,
+                showCopiedFeedback: showCopiedFeedback,
+                onCopy: {
+                    toolPanel.copyOutput()
+                    showCopyFeedback()
+                },
+                onConfigure: { appState.openSettings() }
+            )
         }
     }
 
 
-    // MARK: Translation result
 
-    @ViewBuilder
-    private var generationResult: some View {
-        switch toolPanel.generationPhase {
-        case .idle:
-            EmptyView()
-        case .streaming, .done:
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    if toolPanel.generationPhase == .streaming {
-                        PulsingStatusIndicator()
-                        Text(generationStatusTitle)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Theme.accent)
-                    } else {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.fixed)
-                        Text(generationStatusTitle)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Theme.inkSecondary)
-                    }
-
-                    Text("•")
-                        .font(.system(size: 8))
-                        .foregroundStyle(Theme.inkSecondary.opacity(0.4))
-
-                    Text(toolPanel.selectedProvider.defaultDisplayName)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(Theme.inkSecondary.opacity(0.7))
-
-                    Spacer()
-
-                    if toolPanel.generationPhase == .streaming {
-                        Button(l10n.t("popup.cancel")) {
-                            toolPanel.cancelGeneration(clearOutput: false)
-                        }
-                        .buttonStyle(CapsuleActionButtonStyle(emphasis: .secondary))
-                    } else if toolPanel.generationPhase == .done {
-                        HStack(spacing: 6) {
-                            Button {
-                                toolPanel.submit()
-                            } label: {
-                                Label(l10n.t("popup.retry"), systemImage: "arrow.clockwise")
-                            }
-                            .buttonStyle(CapsuleActionButtonStyle(emphasis: .secondary))
-                            .help(l10n.t("popup.retry"))
-
-                            Button {
-                                toolPanel.copyOutput()
-                                showCopyFeedback()
-                            } label: {
-                                Label(
-                                    showCopiedFeedback ? l10n.t("translation.copied") : l10n.t("translation.copy"),
-                                    systemImage: showCopiedFeedback ? "checkmark" : "doc.on.doc"
-                                )
-                                .foregroundStyle(showCopiedFeedback ? Theme.fixed : Theme.onAccent)
-                            }
-                            .buttonStyle(CapsuleActionButtonStyle(emphasis: showCopiedFeedback ? .secondary : .primary))
-                        }
-                    }
-                }
-                .padding(.bottom, 2)
-
-                StreamingMarkdownView(source: toolPanel.streamSource)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .background {
-                if TranslationLayoutDiagnostics.isEnabled {
-                    TranslationLayoutProbe(
-                        streamID: toolPanel.streamSource.id,
-                        outputUTF16Count: toolPanel.output.utf16.count,
-                        isStreaming: toolPanel.isStreaming
-                    )
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                }
-            }
-        case .failed(let message):
-            errorView(message, retry: { toolPanel.submit() })
-        }
-    }
-
-    private var generationStatusTitle: String {
-        let mode = toolPanel.outputMode ?? toolPanel.mode
-        switch (mode, toolPanel.generationPhase) {
-        case (.translation, .streaming): return l10n.t("translation.translating")
-        case (.translation, _): return l10n.t("translation.translated")
-        case (.deepRead, .streaming): return l10n.t("translation.deepReading")
-        case (.deepRead, _): return l10n.t("translation.deepRead")
-        case (.grammar, _): return l10n.t("tool.grammar")
-        }
-    }
-
-    // MARK: Errors
-
-    private func errorView(_ message: String, retry: (() -> Void)?) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Theme.wrong)
-                    .font(.system(size: 14))
-                Text(message)
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(Theme.ink)
-                    .textSelection(.enabled)
-            }
-            HStack(spacing: 8) {
-                if let retry {
-                    Button(l10n.t("popup.retry"), action: retry)
-                        .buttonStyle(CapsuleActionButtonStyle(emphasis: .primary))
-                }
-                Button(l10n.t("popup.configureService")) {
-                    appState.openSettings()
-                }
-                .buttonStyle(CapsuleActionButtonStyle(emphasis: .secondary))
-                Spacer()
-            }
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Theme.card)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Theme.wrongSoft, lineWidth: 0.8)
-        )
-    }
 
 
     // MARK: Copy feedback
