@@ -24,9 +24,8 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     private let appState: AppState
     private let panel: PopupPanel
     private let hostingView: NSHostingView<AnyView>
+    private let dismissalMonitor = PopupDismissalMonitor()
 
-    private var globalClickMonitor: Any?
-    private var localMonitor: Any?
     private var heightSettleTask: Task<Void, Never>?
     private var settleAnchorFrame: NSRect?
     private var manuallyResizedHeight: CGFloat?
@@ -102,7 +101,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
         isLiveResizing = false
         isUserDragging = false
         isAnchoredAbove = false
-        removeMonitors()
+        dismissalMonitor.remove()
         panel.close()
     }
 
@@ -383,36 +382,21 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     // MARK: Click-outside dismissal
 
     func updateMonitors() {
-        removeMonitors()
-        guard panel.isVisible, !appState.isPinned, !Self.isTestingEnvironment else { return }
-
-        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self, !self.appState.isPinned else { return }
-                self.appState.dismissPopup(restoreFocus: false)
+        dismissalMonitor.update(
+            isVisible: panel.isVisible,
+            isEnabled: !appState.isPinned && !Self.isTestingEnvironment,
+            panel: panel,
+            shouldDismiss: { [weak self] in
+                self?.appState.isPinned == false
+            },
+            dismiss: { [weak self] in
+                self?.appState.dismissPopup(restoreFocus: false)
             }
-        }
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            if let self, event.window != self.panel, !self.appState.isPinned {
-                self.appState.dismissPopup(restoreFocus: false)
-            }
-            return event
-        }
+        )
     }
 
     func removeClickMonitor() {
-        removeMonitors()
-    }
-
-    private func removeMonitors() {
-        if let globalClickMonitor {
-            NSEvent.removeMonitor(globalClickMonitor)
-            self.globalClickMonitor = nil
-        }
-        if let localMonitor {
-            NSEvent.removeMonitor(localMonitor)
-            self.localMonitor = nil
-        }
+        dismissalMonitor.remove()
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -421,6 +405,6 @@ final class PopupWindow: NSObject, NSWindowDelegate {
         settleAnchorFrame = nil
         isLiveResizing = false
         isUserDragging = false
-        removeMonitors()
+        dismissalMonitor.remove()
     }
 }
