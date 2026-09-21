@@ -134,7 +134,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
         panel.isReleasedWhenClosed = false
         panel.contentMinSize = NSSize(width: Self.minimumWidth, height: Self.minimumHeight)
 
-        let rootView = PopupView()
+        let rootView = PopupView(grammar: appState.grammar)
             .environmentObject(appState)
             .environmentObject(appState.toolPanelModel)
             .environmentObject(L10n.shared)

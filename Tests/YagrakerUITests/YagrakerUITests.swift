@@ -196,6 +196,37 @@ final class YagrakerUITests: XCTestCase {
         }
     }
 
+    func testGrammarResultReplacesLoadingWithoutModeSwitch() throws {
+        try MainActor.assumeIsolated {
+            _ = NSApplication.shared
+            let source = "Need maybe manually verify this."
+            let appState = AppState()
+            appState.toolPanelModel.activate(mode: .grammar, input: source, clearResults: true)
+            appState.grammar.originalText = source
+            appState.grammar.isLoading = true
+            appState.popupWindow.show()
+            defer { appState.dismissPopup(restoreFocus: false) }
+            waitForViewUpdate()
+            func descendantCount(of view: NSView) -> Int {
+                1 + view.subviews.reduce(0) { $0 + descendantCount(of: $1) }
+            }
+            let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
+            let root = try XCTUnwrap(panel.contentView)
+            let loadingViewCount = descendantCount(of: root)
+
+            appState.grammar.isLoading = false
+            appState.grammar.correctionResult = CorrectionResult(
+                corrections: [Correction(original: "Need maybe", corrected: "Maybe I need to")],
+                tip: ""
+            )
+
+            XCTAssertTrue(
+                wait(until: { descendantCount(of: root) > loadingViewCount }, timeout: 1.5),
+                "Completed grammar results must replace the loading view without a tab switch"
+            )
+        }
+    }
+
     func testNewTranslationResetsScrollAndKeepsOriginalSummaryMultiline() throws {
         try MainActor.assumeIsolated {
             _ = NSApplication.shared

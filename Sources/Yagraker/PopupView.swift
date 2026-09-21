@@ -7,12 +7,17 @@ import YagrakerCore
 struct PopupView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var toolPanel: ToolPanelModel
+    @ObservedObject private var grammar: GrammarCoordinator
     @EnvironmentObject private var l10n: L10n
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var showCopiedFeedback = false
     @State private var copyFeedbackID = UUID()
     @State private var grammarViewMode = GrammarViewMode.diff
+
+    init(grammar: GrammarCoordinator) {
+        _grammar = ObservedObject(wrappedValue: grammar)
+    }
 
     private enum GrammarViewMode: String, CaseIterable {
         case diff
@@ -28,7 +33,7 @@ struct PopupView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     inputSection
                     if hasResultArea {
-                        if toolPanel.mode == .grammar, !appState.grammar.isLoading {
+                        if toolPanel.mode == .grammar, !grammar.isLoading {
                             Rectangle()
                                 .fill(Theme.hairline)
                                 .frame(height: 1)
@@ -42,7 +47,7 @@ struct PopupView: View {
             }
             .id("\(toolPanel.mode.rawValue)-\(toolPanel.streamSource.id)")
 
-            if let notice = appState.grammar.replacedNotice {
+            if let notice = grammar.replacedNotice {
                 noticeBanner(notice)
             }
 
@@ -123,9 +128,9 @@ struct PopupView: View {
 
     @ViewBuilder
     private var inputSection: some View {
-        if toolPanel.mode == .grammar && appState.grammar.isLoading {
+        if toolPanel.mode == .grammar && grammar.isLoading {
             EmptyView()
-        } else if toolPanel.mode == .grammar, appState.grammar.correctionResult != nil {
+        } else if toolPanel.mode == .grammar, grammar.correctionResult != nil {
             compactSourceSection
         } else if toolPanel.mode == .grammar {
             fullInputSection(isGrammar: true)
@@ -267,21 +272,21 @@ struct PopupView: View {
     }
 
     private var hasResultArea: Bool {
-        (toolPanel.mode == .grammar && appState.grammar.isLoading)
-            || appState.grammar.errorMessage != nil
-            || (toolPanel.mode == .grammar && appState.grammar.correctionResult != nil)
+        (toolPanel.mode == .grammar && grammar.isLoading)
+            || grammar.errorMessage != nil
+            || (toolPanel.mode == .grammar && grammar.correctionResult != nil)
             || (toolPanel.outputMode == toolPanel.mode && toolPanel.generationPhase != .idle)
     }
 
     @ViewBuilder
     private var resultArea: some View {
-        if let error = appState.grammar.errorMessage {
+        if let error = grammar.errorMessage {
             errorView(error, retry: toolPanel.mode == .grammar ? { appState.retry() } : nil)
-        } else if toolPanel.mode == .grammar, appState.grammar.isLoading {
-            TextScanLoadingView(text: appState.grammar.originalText)
+        } else if toolPanel.mode == .grammar, grammar.isLoading {
+            TextScanLoadingView(text: grammar.originalText)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 4)
-        } else if let result = appState.grammar.correctionResult, toolPanel.mode == .grammar {
+        } else if let result = grammar.correctionResult, toolPanel.mode == .grammar {
             grammarResult(result)
         } else if toolPanel.outputMode == toolPanel.mode,
                   (toolPanel.mode == .translation || toolPanel.mode == .deepRead) {
@@ -333,9 +338,9 @@ struct PopupView: View {
 
             Group {
                 if grammarViewMode == .diff {
-                    SegmentedTextView(originalText: appState.grammar.originalText, corrections: result.corrections)
+                    SegmentedTextView(originalText: grammar.originalText, corrections: result.corrections)
                 } else {
-                    Text(result.splicingCorrections(into: appState.grammar.originalText) ?? appState.grammar.originalText)
+                    Text(result.splicingCorrections(into: grammar.originalText) ?? grammar.originalText)
                         .font(.system(size: 13))
                         .lineSpacing(3)
                         .foregroundStyle(Theme.ink)
