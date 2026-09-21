@@ -2,22 +2,6 @@ import AppKit
 import SwiftUI
 import YagrakerCore
 
-/// Borderless floating panel that can take keyboard focus.
-final class PopupPanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-
-    var onCancel: (() -> Void)?
-
-    override func cancelOperation(_ sender: Any?) {
-        onCancel?()
-    }
-}
-
-private final class PopupHostingView<Content: View>: NSHostingView<Content> {
-    override var mouseDownCanMoveWindow: Bool { true }
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-}
 
 /// Hosts the popup SwiftUI content in a floating, non-activating panel:
 /// - user-resizable width and height; automatic height stays within the visible screen
@@ -519,11 +503,4 @@ final class PopupWindow: NSObject, NSWindowDelegate {
         isUserDragging = false
         removeMonitors()
     }
-}
-
-/// Weak registry so the panel can focus the embedded NSTextView editor.
-final class EditorRegistry {
-    static let shared = EditorRegistry()
-    weak var textView: NSTextView?
-    private init() {}
 }
