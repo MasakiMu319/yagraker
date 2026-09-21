@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIGURATION="${CONFIGURATION:-release}"
 DIST_DIR="${DIST_DIR:-$ROOT/dist}"
 APP="$DIST_DIR/Yagraker.app"
-UNIVERSAL_SCRATCH="$ROOT/.build/yagraker-universal"
+BUILD_SCRATCH="$ROOT/.build/yagraker-arm64"
 SIGN_IDENTITY="${SIGN_IDENTITY:-Yagraker Local Development}"
 FEED_URL="${YAGRAKER_FEED_URL:-}"
 PUBLIC_ED_KEY="${YAGRAKER_PUBLIC_ED_KEY:-}"
@@ -40,23 +40,19 @@ if [[ -n "$NOTARY_PROFILE" && ( -z "$FEED_URL" || -z "$PUBLIC_ED_KEY" ) ]]; then
     exit 1
 fi
 
-echo "==> Building universal arm64 + x86_64"
-# Build both slices in one SwiftPM graph. This is important for dependencies
-# using compiler macros: host plugins are built once for the host architecture,
-# while runtime targets receive both requested slices.
+echo "==> Building arm64"
+# Keep plugin host tools and runtime targets on the same single-architecture graph.
 swift build \
     --package-path "$ROOT" \
     --configuration "$CONFIGURATION" \
     --arch arm64 \
-    --arch x86_64 \
-    --scratch-path "$UNIVERSAL_SCRATCH"
+    --scratch-path "$BUILD_SCRATCH"
 
 BIN_DIR="$(swift build \
     --package-path "$ROOT" \
     --configuration "$CONFIGURATION" \
     --arch arm64 \
-    --arch x86_64 \
-    --scratch-path "$UNIVERSAL_SCRATCH" \
+    --scratch-path "$BUILD_SCRATCH" \
     --show-bin-path)"
 
 rm -rf "$APP" "$FINAL_ARCHIVE"
@@ -85,7 +81,7 @@ for localization in "$ROOT"/Support/*.lproj; do
     /usr/bin/plutil -lint "$APP/Contents/Resources/$language/InfoPlist.strings"
 done
 
-SPARKLE_FRAMEWORK="$UNIVERSAL_SCRATCH/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+SPARKLE_FRAMEWORK="$BUILD_SCRATCH/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
 if [[ ! -d "$SPARKLE_FRAMEWORK" ]]; then
     SPARKLE_FRAMEWORK="$(/usr/bin/find "$ROOT/.build" -type d -name Sparkle.framework -print -quit)"
 fi
@@ -94,6 +90,37 @@ if [[ -z "$SPARKLE_FRAMEWORK" || ! -d "$SPARKLE_FRAMEWORK" ]]; then
     exit 1
 fi
 /bin/cp -R "$SPARKLE_FRAMEWORK" "$APP/Contents/Frameworks/"
+
+thin_binary_to_arm64() {
+    local binary="$1"
+    if [[ ! -f "$binary" ]]; then
+        echo "Expected Sparkle binary not found: $binary" >&2
+        exit 1
+    fi
+
+    local architecture_info
+    architecture_info="$(/usr/bin/lipo -info "$binary")"
+    if [[ "$architecture_info" == *"x86_64"* ]]; then
+        echo "==> Thinning ${binary#"$APP"/} to arm64"
+        /usr/bin/lipo "$binary" -thin arm64 -output "$binary.arm64"
+        /bin/mv "$binary.arm64" "$binary"
+    fi
+    /usr/bin/lipo -verify_arch arm64 "$binary"
+}
+
+# Sparkle's SwiftPM artifact only ships a universal macOS slice. Thin the
+# framework and its nested updater helpers before re-signing the whole app.
+SPARKLE_VERSION_DIR="$APP/Contents/Frameworks/Sparkle.framework/Versions/Current"
+SPARKLE_BINARIES=(
+    "$SPARKLE_VERSION_DIR/Sparkle"
+    "$SPARKLE_VERSION_DIR/Autoupdate"
+    "$SPARKLE_VERSION_DIR/Updater.app/Contents/MacOS/Updater"
+    "$SPARKLE_VERSION_DIR/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"
+    "$SPARKLE_VERSION_DIR/XPCServices/Installer.xpc/Contents/MacOS/Installer"
+)
+for sparkle_binary in "${SPARKLE_BINARIES[@]}"; do
+    thin_binary_to_arm64 "$sparkle_binary"
+done
 
 /usr/bin/xcrun swift \
     "$ROOT/Scripts/generate-icon.swift" \
@@ -119,10 +146,10 @@ if [[ "$SIGNATURE_INFO" == *"Signature=adhoc"* ]]; then
 fi
 /usr/bin/lipo -info "$APP/Contents/MacOS/Yagraker"
 /usr/bin/lipo -verify_arch arm64 "$APP/Contents/MacOS/Yagraker"
-/usr/bin/lipo -verify_arch x86_64 "$APP/Contents/MacOS/Yagraker"
-/usr/bin/lipo -info "$APP/Contents/Frameworks/Sparkle.framework/Sparkle"
-/usr/bin/lipo -verify_arch arm64 "$APP/Contents/Frameworks/Sparkle.framework/Sparkle"
-/usr/bin/lipo -verify_arch x86_64 "$APP/Contents/Frameworks/Sparkle.framework/Sparkle"
+for sparkle_binary in "${SPARKLE_BINARIES[@]}"; do
+    /usr/bin/lipo -info "$sparkle_binary"
+    /usr/bin/lipo -verify_arch arm64 "$sparkle_binary"
+done
 
 if [[ -n "$NOTARY_PROFILE" ]]; then
     NOTARY_ARCHIVE="$DIST_DIR/Yagraker-notarization.zip"
