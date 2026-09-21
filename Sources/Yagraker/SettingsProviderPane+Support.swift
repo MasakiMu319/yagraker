@@ -2,31 +2,6 @@ import SwiftUI
 import YagrakerCore
 
 extension SettingsProviderPane {
-    func providerField<Content: View>(
-        _ title: String,
-        detail: String? = nil,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.ink)
-                if let detail {
-                    Text(detail)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(Theme.inkSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(width: 176, alignment: .leading)
-
-            content()
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-    }
 
     var providerDivider: some View {
         Rectangle()
@@ -78,20 +53,6 @@ extension SettingsProviderPane {
         }
     }
 
-    @ViewBuilder
-    func providerHelp(for provider: LLMProviderKind) -> some View {
-        let (label, url) = providerHelpLink(for: provider)
-        if let url {
-            Link(destination: url) {
-                Label(label, systemImage: "arrow.up.right.square")
-                    .font(.system(size: 12))
-            }
-        } else {
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.inkSecondary)
-        }
-    }
 
     func persistProvider(showFeedback: Bool) {
         viewModel.persistProvider(showFeedback: showFeedback, l10n: l10n, refreshConfiguration: refreshConfiguration)
@@ -101,19 +62,6 @@ extension SettingsProviderPane {
         viewModel.validateProvider(l10n: l10n, refreshConfiguration: refreshConfiguration)
     }
 
-    func draftBinding<Value>(
-        _ provider: LLMProviderKind,
-        keyPath: WritableKeyPath<ProviderDraft, Value>
-    ) -> Binding<Value> {
-        Binding(
-            get: { viewModel.providerDrafts[provider]![keyPath: keyPath] },
-            set: { value in
-                guard var draft = viewModel.providerDrafts[provider] else { return }
-                draft[keyPath: keyPath] = value
-                viewModel.providerDrafts[provider] = draft
-            }
-        )
-    }
 
     func routeProvider(for task: LLMTask) -> LLMProviderKind {
         viewModel.routeProviders[task] ?? .gemini
@@ -258,31 +206,7 @@ extension SettingsProviderPane {
         }
     }
 
-    func clusterName(_ cluster: MiMoCluster) -> String {
-        switch cluster {
-        case .cn: return l10n.t("cluster.cn")
-        case .sg: return l10n.t("cluster.sg")
-        case .eu: return l10n.t("cluster.eu")
-        }
-    }
 
-    func endpointLabel(for provider: LLMProviderKind) -> String {
-        let draft = viewModel.providerDrafts[provider]!
-        switch provider {
-        case .gemini:
-            return "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        case .qwen:
-            let base = draft.qwenBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-            return (base.isEmpty ? QwenService.defaultBaseURL : base.trimmingCharacters(in: CharacterSet(charactersIn: "/"))) + "/chat/completions"
-        case .deepseek:
-            return "https://api.deepseek.com/chat/completions"
-        case .mimo:
-            return draft.mimoCluster.baseURL + "/chat/completions"
-        case .custom:
-            let base = draft.customBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-            return (base.isEmpty ? "{base}" : base.trimmingCharacters(in: CharacterSet(charactersIn: "/"))) + "/chat/completions"
-        }
-    }
 
     func modelPlaceholder(for provider: LLMProviderKind, task: LLMTask) -> String {
         let defaultModel = provider.defaultModel(for: task)
@@ -290,20 +214,6 @@ extension SettingsProviderPane {
         return provider == .qwen && task != .translation ? "qwen-plus" : "model-id"
     }
 
-    func providerHelpLink(for provider: LLMProviderKind) -> (String, URL?) {
-        switch provider {
-        case .gemini:
-            return (l10n.t("provider.help.gemini"), URL(string: "https://aistudio.google.com/apikey"))
-        case .qwen:
-            return (l10n.t("provider.help.qwen"), URL(string: "https://bailian.console.aliyun.com/"))
-        case .deepseek:
-            return (l10n.t("provider.help.deepseek"), URL(string: "https://platform.deepseek.com/api_keys"))
-        case .mimo:
-            return (l10n.t("provider.help.mimo"), URL(string: "https://platform.xiaomimimo.com"))
-        case .custom:
-            return (l10n.t("provider.help.custom"), nil)
-        }
-    }
 
     var validateButtonTitle: String {
         l10n.t("settings.provider.validateTaskButton", taskName(viewModel.validationTask))
