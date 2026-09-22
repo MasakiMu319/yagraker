@@ -20,7 +20,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         super.init()
 
         if let button = statusItem.button {
-            button.image = ReIconAsset.menuBarPenSparkle
+            button.image = ReIconAsset.menuBarMark
             button.imageScaling = .scaleProportionallyDown
             button.setAccessibilityLabel("Yagraker")
             button.toolTip = "Yagraker"

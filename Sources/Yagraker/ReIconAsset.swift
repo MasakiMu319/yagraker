@@ -13,8 +13,10 @@ enum ReIconAsset {
     private static let providerMiMo = load("reicon-xiaomi-mimo", size: 13)
     private static let providerDeepSeek = load("reicon-deepseek", size: 13)
     private static let providerServer = load("reicon-server", size: 13)
-    static let menuBarPenSparkle: NSImage = {
-        let image = load("reicon-pen-sparkle")
+    /// Menu-bar template image: the handwritten "y" from yagraker-mark.svg,
+    /// redrawn at status-bar stroke weight so it stays crisp at 17pt.
+    static let menuBarMark: NSImage = {
+        let image = load("yagraker-menubar")
         image.size = NSSize(width: 17, height: 17)
         return image
     }()

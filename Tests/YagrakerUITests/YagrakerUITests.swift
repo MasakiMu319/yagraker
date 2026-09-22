@@ -981,7 +981,7 @@ final class YagrakerUITests: XCTestCase {
 
     func testMenuBarReIconAssetRendersAtStatusBarSize() {
         MainActor.assumeIsolated {
-            let image = ReIconAsset.menuBarPenSparkle
+            let image = ReIconAsset.menuBarMark
             XCTAssertTrue(image.isTemplate)
             XCTAssertEqual(image.size, NSSize(width: 17, height: 17))
 
