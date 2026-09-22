@@ -15,7 +15,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     nonisolated static let anchorGap: CGFloat = 8
     nonisolated static let screenMargin: CGFloat = 8
 
-    static var isTestingEnvironment: Bool {
+    nonisolated static var isTestingEnvironment: Bool {
         NSClassFromString("XCTestCase") != nil
             || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
             || ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil

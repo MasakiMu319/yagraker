@@ -77,11 +77,11 @@ struct PopupInputSectionView: View {
             .padding(.bottom, 8)
         }
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Theme.card)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Theme.contentCard)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(Theme.cardBorder, lineWidth: 0.8)
         )
     }

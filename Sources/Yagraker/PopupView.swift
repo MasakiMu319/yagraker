@@ -50,19 +50,7 @@ struct PopupView: View {
 
             WindowResizeHandle()
         }
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Theme.paper.opacity(0.94))
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(.regularMaterial)
-                )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Theme.panelBorder, lineWidth: 0.8)
-        )
+        .liquidGlassPanel()
         .onChange(of: toolPanel.output) { _, _ in
             if appState.popupWindow.isVisible, !toolPanel.isStreaming {
                 // Resize only once streaming ends. During streaming the outer

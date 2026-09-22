@@ -35,9 +35,11 @@ struct SettingsTabBar: View {
     @Binding var selectedTab: SettingsTab
 
     var body: some View {
+        // Single persistent selection pill behind the labels, gliding via an
+        // animated offset (see `LiquidGlassPill` for why this is not a
+        // `glassEffectID` morph).
         ZStack(alignment: .leading) {
-            Capsule()
-                .fill(Theme.accentSoft)
+            LiquidGlassPill(tint: Theme.accentSoft)
                 .frame(width: Self.selectionWidth, height: Self.selectionHeight)
                 .offset(x: selectionOffset)
                 .allowsHitTesting(false)

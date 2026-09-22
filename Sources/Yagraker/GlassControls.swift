@@ -6,45 +6,51 @@ struct GlassModeSelector: View {
     @EnvironmentObject private var l10n: L10n
     let selectedMode: ToolPanelModel.Mode
     let onSelect: (ToolPanelModel.Mode) -> Void
-    @Namespace private var selectionIndicator
 
     private static let segmentWidth: CGFloat = 73
-
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(ToolPanelModel.Mode.allCases, id: \.self) { mode in
-                let selected = selectedMode == mode
-                Button {
-                    onSelect(mode)
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: mode.icon)
-                            .font(.system(size: 11, weight: .medium))
-                        Text(mode.title(l10n))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                    }
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(selected ? Theme.ink : Theme.inkSecondary)
-                    .padding(.horizontal, 5)
-                    .frame(width: Self.segmentWidth, height: 34)
-                    .background {
-                        if selected {
-                            Capsule()
-                                .fill(Theme.accentSoft)
-                                .matchedGeometryEffect(id: "mode-selection", in: selectionIndicator)
+        // Single persistent selection pill gliding behind the segments (see
+        // `LiquidGlassPill`). The track stays a flat ink wash: a frosted glass
+        // track would blur the pill moving underneath it.
+        ZStack(alignment: .leading) {
+            LiquidGlassPill(tint: Theme.accentSoft)
+                .frame(width: Self.segmentWidth, height: 34)
+                .offset(x: pillOffset)
+                .allowsHitTesting(false)
+
+            HStack(spacing: 2) {
+                ForEach(ToolPanelModel.Mode.allCases, id: \.self) { mode in
+                    let selected = selectedMode == mode
+                    Button {
+                        onSelect(mode)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: mode.icon)
+                                .font(.system(size: 11, weight: .medium))
+                            Text(mode.title(l10n))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
                         }
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(selected ? Theme.ink : Theme.inkSecondary)
+                        .padding(.horizontal, 5)
+                        .frame(width: Self.segmentWidth, height: 34)
+                        .contentShape(Rectangle())
                     }
-                    .contentShape(Rectangle())
+                    .buttonStyle(CapsuleSegmentButtonStyle(isSelected: selected))
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
-                .buttonStyle(CapsuleSegmentButtonStyle(isSelected: selected))
-                .accessibilityAddTraits(selected ? .isSelected : [])
             }
+            .padding(2)
+            .background(Capsule().fill(Theme.ink.opacity(0.06)))
         }
-        .padding(2)
-        .background(Capsule().fill(Theme.ink.opacity(0.06)))
         .fixedSize(horizontal: true, vertical: false)
         .animation(.spring(response: 0.22, dampingFraction: 0.86), value: selectedMode)
+    }
+
+    private var pillOffset: CGFloat {
+        let index = ToolPanelModel.Mode.allCases.firstIndex(of: selectedMode) ?? 0
+        return 2 + CGFloat(index) * (Self.segmentWidth + 2)
     }
 }
 
@@ -93,14 +99,7 @@ struct GlassProviderPicker: View {
             .foregroundStyle(Theme.inkSecondary)
             .padding(.horizontal, 9)
             .contentShape(Capsule())
-            .background(
-                Capsule()
-                    .fill(Theme.ink.opacity(0.05))
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(Theme.cardBorder, lineWidth: 0.6)
-                    )
-            )
+            .liquidGlassCapsule()
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)

@@ -35,6 +35,16 @@ enum Theme {
         NSColor(calibratedRed: 0.165, green: 0.158, blue: 0.150, alpha: 0.65)
     )
 
+    /// Content-layer card on top of a Liquid Glass surface (text input).
+    /// Nearly opaque so text stays crisp against the glass sampling behind;
+    /// the HIG reserves glass for the floating control layer, not content.
+    /// Radius pairs with the panel: 22 (panel) - 14 (inset) ≈ 8–12, keeping
+    /// the card concentric with the panel curve.
+    static let contentCard = dynamic(
+        NSColor(calibratedRed: 1.0, green: 1.0, blue: 1.0, alpha: 0.92),
+        NSColor(calibratedRed: 0.155, green: 0.148, blue: 0.140, alpha: 0.88)
+    )
+
     /// Subtle card or callout background.
     static let cardSubtle = dynamic(
         NSColor(calibratedRed: 44 / 255, green: 42 / 255, blue: 38 / 255, alpha: 0.04),
@@ -51,6 +61,15 @@ enum Theme {
     static let panelBorder = dynamic(
         NSColor(calibratedRed: 44 / 255, green: 42 / 255, blue: 38 / 255, alpha: 0.12),
         NSColor(calibratedRed: 230 / 255, green: 227 / 255, blue: 220 / 255, alpha: 0.14)
+    )
+
+    /// Warm paper wash used to tint Liquid Glass surfaces so the material
+    /// keeps the product identity instead of going neutral frosted gray.
+    /// Kept faint on purpose: past ~0.3 alpha the glass turns into an opaque
+    /// slab and stops reading as glass at all.
+    static let glassTint = dynamic(
+        NSColor(calibratedRed: 0.976, green: 0.965, blue: 0.949, alpha: 0.18),
+        NSColor(calibratedRed: 0.140, green: 0.132, blue: 0.124, alpha: 0.28)
     )
 
     /// Warm clay accent.

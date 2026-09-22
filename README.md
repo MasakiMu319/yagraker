@@ -85,7 +85,7 @@ Yagraker avoids cold generic UI in favor of an artisanal tactile experience:
 ## 🛠️ Build & Installation
 
 ### Requirements
-- macOS 15.0 or later
+- macOS 26.0 or later
 - Xcode 16.0+ (or Swift 5.10+ command-line tools)
 
 ### 1. Quick Build & Test

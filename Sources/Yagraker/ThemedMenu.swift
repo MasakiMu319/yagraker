@@ -22,11 +22,8 @@ struct ThemedMenuLabel: View {
         .font(.system(size: 12, weight: .medium))
         .padding(.horizontal, 10)
         .frame(width: width, height: 26, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Theme.ink.opacity(0.05))
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .liquidGlassCapsule(cornerRadius: 8)
     }
 }
 
