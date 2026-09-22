@@ -105,11 +105,11 @@ struct CapsuleActionButtonStyle: ButtonStyle {
                 .glassEffect(glass, in: .capsule)
         }
 
-        /// Interactive glass opts into the macOS 27 click-bounce response.
+        /// Clear glass keeps compact result actions from gaining a heavy dark contour.
         private var glass: Glass {
             switch emphasis {
-            case .primary: return .regular.tint(Theme.accent).interactive()
-            case .secondary: return .regular.interactive()
+            case .primary: return .clear.tint(Theme.accent).interactive()
+            case .secondary: return .clear.tint(Theme.resultCard).interactive()
             }
         }
     }

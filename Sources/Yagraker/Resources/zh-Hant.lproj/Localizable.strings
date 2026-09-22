@@ -112,6 +112,8 @@
 "popup.textToProcess" = "待處理文字";
 "popup.original" = "原文";
 "popup.actionGrammar" = "檢查";
+"popup.grammarChecking" = "正在檢查語法";
+"popup.grammarCheckingDetail" = "正在尋找語法、拼字和措辭問題";
 "popup.actionTranslate" = "翻譯";
 "popup.actionDeepRead" = "精讀";
 "popup.accept" = "採納";

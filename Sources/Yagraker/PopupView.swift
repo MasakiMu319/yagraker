@@ -127,7 +127,11 @@ struct PopupView: View {
                 onConfigure: { appState.openSettings() }
             )
         } else if toolPanel.mode == .grammar, grammar.isLoading {
-            TextScanLoadingView(text: grammar.originalText)
+            TextScanLoadingView(
+                text: grammar.originalText,
+                statusTitle: l10n.t("popup.grammarChecking"),
+                statusDetail: l10n.t("popup.grammarCheckingDetail")
+            )
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 4)
         } else if let result = grammar.correctionResult, toolPanel.mode == .grammar {

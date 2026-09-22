@@ -34,6 +34,13 @@ final class MarkdownStreamSource {
         }
     }
 
+    /// Last normalized snapshot, used to hydrate a newly attached renderer synchronously.
+    var currentSnapshot: String {
+        lock.lock()
+        defer { lock.unlock() }
+        return snapshot
+    }
+
     func update(with snapshot: String) {
         let normalized = snapshot.trimmingCharacters(in: .whitespacesAndNewlines)
         lock.lock()
@@ -158,7 +165,9 @@ private struct AppKitStreamingMarkdownView: NSViewRepresentable {
 
         func attach(to view: MarkdownTextView) {
             self.view = view
-            apply("", force: true)
+            let initialSnapshot = source.currentSnapshot
+            lastSnapshot = initialSnapshot
+            apply(initialSnapshot, force: true)
             start()
         }
 
@@ -167,10 +176,11 @@ private struct AppKitStreamingMarkdownView: NSViewRepresentable {
                 detach()
                 self.source = source
                 self.view = view
-                lastSnapshot = ""
+                let initialSnapshot = source.currentSnapshot
+                lastSnapshot = initialSnapshot
                 lastAppliedSnapshot = ""
                 lastMeasuredWidth = -1
-                apply("", force: true)
+                apply(initialSnapshot, force: true)
                 start()
             }
             if self.theme != theme {
@@ -197,15 +207,18 @@ private struct AppKitStreamingMarkdownView: NSViewRepresentable {
         }
 
         private func start() {
+            let sourceID = source.id
             let stream = source.text
             task = Task { [weak self] in
                 for await snapshot in stream {
-                    self?.receive(snapshot)
+                    guard !Task.isCancelled else { break }
+                    self?.receive(snapshot, from: sourceID)
                 }
             }
         }
 
-        private func receive(_ snapshot: String) {
+        private func receive(_ snapshot: String, from sourceID: UUID) {
+            guard source.id == sourceID else { return }
             guard snapshot != lastSnapshot else { return }
             lastSnapshot = snapshot
             apply(snapshot)

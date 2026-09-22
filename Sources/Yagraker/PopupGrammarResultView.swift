@@ -69,7 +69,11 @@ struct PopupGrammarResultView: View {
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Theme.fixedSoft)
+                    .fill(Theme.resultCard)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Theme.cardBorder, lineWidth: 0.5)
             )
         }
     }
@@ -146,7 +150,7 @@ struct PopupGrammarResultView: View {
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Theme.cardSubtle)
+                    .fill(Theme.resultCard)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -193,7 +197,7 @@ struct PopupGrammarResultView: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Theme.cardSubtle)
+                .fill(Theme.resultCard)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)

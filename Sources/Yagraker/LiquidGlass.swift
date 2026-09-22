@@ -12,9 +12,9 @@ enum LiquidGlass {
     /// subclassing inside SwiftUI content.
     static let panelCornerRadius: CGFloat = 22
 
-    /// Panel chrome: a real Liquid Glass surface tinted with the warm paper
-    /// wash so the panel keeps its paper-and-ink identity. Content is clipped
-    /// into the glass shape, so no separate clip/border is needed.
+    /// Panel chrome: a lightly neutralized Liquid Glass surface that preserves
+    /// backdrop depth without letting the desktop color dominate the popup. Content
+    /// is clipped into the glass shape, so no separate clip/border is needed.
     static let panelGlass: Glass = .regular.tint(Theme.glassTint)
 
     /// Under XCTest the windows are offscreen, so glass has no WindowServer

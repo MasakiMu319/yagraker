@@ -112,6 +112,8 @@
 "popup.textToProcess" = "Text to process";
 "popup.original" = "Original";
 "popup.actionGrammar" = "Check";
+"popup.grammarChecking" = "Checking grammar";
+"popup.grammarCheckingDetail" = "Looking for grammar, spelling, and phrasing issues";
 "popup.actionTranslate" = "Translate";
 "popup.actionDeepRead" = "Deep Read";
 "popup.accept" = "Accept";

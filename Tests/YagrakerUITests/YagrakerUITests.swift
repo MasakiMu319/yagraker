@@ -1324,6 +1324,55 @@ final class YagrakerUITests: XCTestCase {
         }
     }
 
+    func testCompletedTranslationSurvivesRealModeTabRoundTrip() throws {
+        try MainActor.assumeIsolated {
+            let service = EchoingOpenStreamService(initialOutput: "Persisted real translation")
+            let appState = AppState()
+            let toolPanel = ToolPanelModel { kind, task in
+                ProviderResolver.Resolved(
+                    kind: kind,
+                    task: task,
+                    apiKey: "test-key",
+                    model: "test-model",
+                    service: service
+                )
+            }
+            appState.toolPanelModel = toolPanel
+            toolPanel.activate(mode: .translation, input: "Source text", clearResults: true)
+            appState.popupWindow.show()
+            defer {
+                service.finish()
+                appState.dismissPopup(restoreFocus: false)
+            }
+
+            toolPanel.startGeneration(mode: .translation, text: "Source text")
+            XCTAssertTrue(wait(until: { toolPanel.output.contains("Persisted real translation") }))
+            service.finish()
+            XCTAssertTrue(wait(until: { toolPanel.generationPhase == .done }))
+
+            let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
+            let contentView = try XCTUnwrap(panel.contentView)
+            XCTAssertTrue(renderedText(in: contentView).contains("Persisted real translation"))
+
+            toolPanel.selectMode(.grammar)
+            waitForViewUpdate()
+            toolPanel.selectMode(.translation)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+            XCTAssertTrue(
+                renderedText(in: contentView).contains("Persisted real translation"),
+                "Returning to Translate must render the completed snapshot without a blank frame"
+            )
+            XCTAssertEqual(toolPanel.output, "Persisted real translation")
+            XCTAssertEqual(toolPanel.generationPhase, .done)
+            XCTAssertEqual(toolPanel.outputMode, .translation)
+            XCTAssertEqual(toolPanel.streamSource.currentSnapshot, "Persisted real translation")
+            XCTAssertTrue(
+                self.wait(until: { self.renderedText(in: contentView).contains("Persisted real translation") }),
+                "A completed translation must survive a real mode-tab round trip"
+            )
+        }
+    }
+
     func testClearingOrModifyingInputResetsStaleResults() {
         MainActor.assumeIsolated {
             let appState = AppState()
