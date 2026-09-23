@@ -51,6 +51,10 @@ struct PopupView: View {
             WindowResizeHandle()
         }
         .liquidGlassPanel()
+        // Custom soft shadow inside the window's transparent padding — the
+        // system shadow is disabled (it draws a hard dark rim around key
+        // windows on macOS 26+).
+        .layeredShadow()
         .onChange(of: toolPanel.output) { _, _ in
             if appState.popupWindow.isVisible, !toolPanel.isStreaming {
                 // Resize only once streaming ends. During streaming the outer

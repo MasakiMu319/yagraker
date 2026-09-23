@@ -1,15 +1,16 @@
 import AppKit
 
 extension PopupWindow {
+    /// Target size in content space (the visible panel, no shadow padding).
     func targetPanelSize() -> NSSize {
         hostingView.layoutSubtreeIfNeeded()
         let fitting = hostingView.fittingSize
         let preferredHeight = manuallyResizedHeight ?? fitting.height
         let height = isShowingGrammarResult
             ? min(preferredHeight, fitting.height)
-            : (preferredHeight > 0 ? preferredHeight : panel.frame.height)
+            : (preferredHeight > 0 ? preferredHeight : contentFrame.height)
         return Self.constrainedSize(
-            NSSize(width: panel.frame.width, height: height),
+            NSSize(width: contentFrame.width, height: height),
             minimumSize: Self.minimumPanelSize,
             maximumSize: maximumPanelSize
         )
@@ -51,7 +52,7 @@ extension PopupWindow {
     func resizePanel(animated: Bool) {
         guard !isLiveResizing, !isUserDragging else { return }
         let size = targetPanelSize()
-        var frame = panel.frame
+        var frame = contentFrame
         if isAnchoredAbove {
             let currentBottom = frame.minY
             let screen = panel.screen ?? NSScreen.main
@@ -67,14 +68,15 @@ extension PopupWindow {
             let topLeft = NSPoint(x: frame.minX, y: frame.maxY)
             frame = NSRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height)
         }
+        let windowFrame = Self.windowRect(forContentRect: frame)
         if animated {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.22
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                panel.animator().setFrame(frame, display: true)
+                panel.animator().setFrame(windowFrame, display: true)
             }
         } else {
-            panel.setFrame(frame, display: true)
+            panel.setFrame(windowFrame, display: true)
         }
     }
 

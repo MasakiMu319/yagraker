@@ -8,12 +8,15 @@ import YagrakerCore
 @MainActor
 final class PopupWindow: NSObject, NSWindowDelegate {
 
-    static let panelStyleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel, .resizable]
+    // Resizing is handled by WindowResizeHandle; avoid AppKit's native resizable frame.
+    static let panelStyleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel]
     static let defaultSize = NSSize(width: 481, height: 373)
     static let minimumWidth: CGFloat = 440
     static let minimumHeight: CGFloat = 240
     nonisolated static let anchorGap: CGFloat = 8
     nonisolated static let screenMargin: CGFloat = 8
+    /// Transparent padding around the visible panel; hosts the SwiftUI shadow.
+    nonisolated static let shadowInset: CGFloat = 28
 
     nonisolated static var isTestingEnvironment: Bool {
         NSClassFromString("XCTestCase") != nil
@@ -40,20 +43,25 @@ final class PopupWindow: NSObject, NSWindowDelegate {
         manuallyResizedHeight = storedSize?.height
 
         panel = PopupPanel(
-            contentRect: NSRect(origin: .zero, size: initialSize),
+            contentRect: NSRect(origin: .zero, size: Self.windowSize(forContentSize: initialSize)),
             styleMask: Self.panelStyleMask,
             backing: .buffered,
             defer: false
         )
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        // No system shadow: on macOS 26+ WindowServer draws a hard dark rim
+        // around a key window's silhouette together with the drop shadow,
+        // visible as a black frame hugging the panel's rounded corners. The
+        // popup draws its own soft shadow in SwiftUI (PopupView layeredShadow)
+        // inside the transparent `shadowInset` padding instead.
+        panel.hasShadow = false
         panel.level = .floating
         panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.isMovable = true
         panel.isMovableByWindowBackground = true
         panel.isReleasedWhenClosed = false
-        panel.contentMinSize = NSSize(width: Self.minimumWidth, height: Self.minimumHeight)
+        panel.contentMinSize = Self.windowSize(forContentSize: Self.minimumPanelSize)
 
         let rootView = PopupView(grammar: appState.grammar)
             .environmentObject(appState)
@@ -61,15 +69,18 @@ final class PopupWindow: NSObject, NSWindowDelegate {
             .environmentObject(L10n.shared)
         hostingView = PopupHostingView(rootView: AnyView(rootView))
         hostingView.translatesAutoresizingMaskIntoConstraints = false
-        panel.contentView = hostingView
-        if let contentView = panel.contentView {
-            NSLayoutConstraint.activate([
-                hostingView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-                hostingView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-                hostingView.topAnchor.constraint(equalTo: contentView.topAnchor),
-                hostingView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-            ])
-        }
+        // Flipped to match NSHostingView's coordinate space; a non-flipped
+        // superview makes the streaming ScrollView anchor its growing document
+        // to the wrong edge (content visibly drifts while streaming).
+        let container = FlippedHostingContainer()
+        panel.contentView = container
+        container.addSubview(hostingView)
+        NSLayoutConstraint.activate([
+            hostingView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: Self.shadowInset),
+            hostingView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -Self.shadowInset),
+            hostingView.topAnchor.constraint(equalTo: container.topAnchor, constant: Self.shadowInset),
+            hostingView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -Self.shadowInset),
+        ])
 
         super.init()
         panel.delegate = self
@@ -111,7 +122,8 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     }
 
     var isVisible: Bool { panel.isVisible }
-    var currentSize: NSSize { panel.frame.size }
+    /// Size of the visible panel (window frame minus the shadow padding).
+    var currentSize: NSSize { Self.contentSize(forWindowSize: panel.frame.size) }
 
     // MARK: Focus
 
@@ -138,7 +150,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     /// Keeps `AppState.panelHeight` in sync across user resizes and
     /// programmatic frame changes, so content can flex with the panel.
     func windowDidResize(_ notification: Notification) {
-        appState.panelHeight = panel.frame.height
+        appState.panelHeight = Self.contentSize(forWindowSize: panel.frame.size).height
     }
 
 
@@ -217,16 +229,19 @@ final class PopupWindow: NSObject, NSWindowDelegate {
             minimumSize: Self.minimumPanelSize,
             maximumSize: maximumPanelSize
         )
-        let topLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+        let contentFrame = self.contentFrame
+        let topLeft = NSPoint(x: contentFrame.minX, y: contentFrame.maxY)
         manuallyResizedHeight = size.height
         setFrameKeepingTopLeft(size, topLeft: topLeft)
     }
 
     func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
-        Self.constrainedSize(
-            frameSize,
-            minimumSize: Self.minimumPanelSize,
-            maximumSize: maximumPanelSize
+        Self.windowSize(
+            forContentSize: Self.constrainedSize(
+                Self.contentSize(forWindowSize: frameSize),
+                minimumSize: Self.minimumPanelSize,
+                maximumSize: maximumPanelSize
+            )
         )
     }
 
@@ -238,7 +253,7 @@ final class PopupWindow: NSObject, NSWindowDelegate {
     func endManualResize() {
         isLiveResizing = false
         let size = Self.constrainedSize(
-            panel.frame.size,
+            currentSize,
             minimumSize: Self.minimumPanelSize,
             maximumSize: maximumPanelSize
         )

@@ -50,9 +50,10 @@ final class YagrakerUITests: XCTestCase {
         }
     }
 
-    func testPopupPanelIsResizableInBothDimensions() {
+    func testPopupPanelUsesCustomResizeWithExpectedConstraints() {
         MainActor.assumeIsolated {
-            XCTAssertTrue(PopupWindow.panelStyleMask.contains(.resizable))
+            XCTAssertTrue(PopupWindow.panelStyleMask.contains(.borderless))
+            XCTAssertFalse(PopupWindow.panelStyleMask.contains(.resizable))
             XCTAssertEqual(PopupWindow.defaultSize, NSSize(width: 481, height: 373))
             XCTAssertEqual(
                 PopupWindow.constrainedSize(
@@ -81,7 +82,7 @@ final class YagrakerUITests: XCTestCase {
         }
     }
 
-    func testGrammarInputEditorUsesIntendedHeight() throws {
+    func testGrammarInputEditorUsesIntendedHeightWhenFocused() throws {
         try MainActor.assumeIsolated {
             _ = NSApplication.shared
             let appState = AppState()
@@ -100,7 +101,10 @@ final class YagrakerUITests: XCTestCase {
                 firstDescendant(of: QuickTranslationTextEditor.PasteAwareTextView.self, in: contentView)
             )
             let scrollView = try XCTUnwrap(textView.enclosingScrollView)
-
+            panel.makeKeyAndOrderFront(nil)
+            appState.popupWindow.focusInput()
+            XCTAssertTrue(panel.isKeyWindow)
+            XCTAssertTrue(panel.firstResponder === textView)
             XCTAssertEqual(scrollView.frame.height, 96, accuracy: 1)
         }
     }
@@ -187,12 +191,12 @@ final class YagrakerUITests: XCTestCase {
             appState.popupWindow.resizePanel(animated: false)
 
             let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
-            XCTAssertEqual(panel.frame.height, PopupWindow.minimumHeight, accuracy: 1)
+            XCTAssertEqual(panel.frame.height, PopupWindow.minimumHeight + PopupWindow.shadowInset * 2, accuracy: 1)
             XCTAssertEqual(store.panelSize?.height ?? 0, savedSize.height, accuracy: 1)
 
             appState.toolPanelModel.selectMode(.translation)
-            _ = wait(until: { abs(panel.frame.height - savedSize.height) <= 1 }, timeout: 1.5)
-            XCTAssertEqual(panel.frame.height, savedSize.height, accuracy: 1)
+            _ = wait(until: { abs(panel.frame.height - (savedSize.height + PopupWindow.shadowInset * 2)) <= 1 }, timeout: 1.5)
+            XCTAssertEqual(panel.frame.height, savedSize.height + PopupWindow.shadowInset * 2, accuracy: 1)
         }
     }
 
@@ -497,8 +501,10 @@ final class YagrakerUITests: XCTestCase {
             XCTAssertEqual(panel.frame.origin.y, start.y + 20, accuracy: 1)
 
             appState.popupWindow.endManualMove()
-            XCTAssertEqual(store.panelTopLeft?.x ?? 0, panel.frame.minX, accuracy: 1)
-            XCTAssertEqual(store.panelTopLeft?.y ?? 0, panel.frame.maxY, accuracy: 1)
+            // Persisted position is the visible panel's top-left (window frame
+            // minus the transparent shadow padding).
+            XCTAssertEqual(store.panelTopLeft?.x ?? 0, panel.frame.minX + PopupWindow.shadowInset, accuracy: 1)
+            XCTAssertEqual(store.panelTopLeft?.y ?? 0, panel.frame.maxY - PopupWindow.shadowInset, accuracy: 1)
         }
     }
 
@@ -525,16 +531,16 @@ final class YagrakerUITests: XCTestCase {
             waitForViewUpdate()
 
             let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
-            let contentView = try XCTUnwrap(panel.contentView)
+            let hostingView = appState.popupWindow.hostingView
             let start = panel.frame.origin
-            let y = contentView.isFlipped ? 27 : contentView.bounds.height - 27
-            let point = NSPoint(x: contentView.bounds.width * 0.68, y: y)
+            let y = hostingView.isFlipped ? 27 : hostingView.bounds.height - 27
+            let point = NSPoint(x: hostingView.bounds.width * 0.68, y: y)
             let moved = point.applying(CGAffineTransform(translationX: 40, y: -20))
-            sendMouseEvent(.leftMouseDown, at: point, in: contentView, window: panel)
+            sendMouseEvent(.leftMouseDown, at: point, in: hostingView, window: panel)
             waitForViewUpdate()
-            sendMouseEvent(.leftMouseDragged, at: moved, in: contentView, window: panel)
+            sendMouseEvent(.leftMouseDragged, at: moved, in: hostingView, window: panel)
             waitForViewUpdate()
-            sendMouseEvent(.leftMouseUp, at: moved, in: contentView, window: panel)
+            sendMouseEvent(.leftMouseUp, at: moved, in: hostingView, window: panel)
             waitForViewUpdate()
 
             XCTAssertEqual(panel.frame.origin.x, start.x + 40, accuracy: 1)
@@ -574,8 +580,8 @@ final class YagrakerUITests: XCTestCase {
 
             appState.popupWindow.moveManually(by: CGSize(width: 40, height: -20))
             appState.popupWindow.endManualMove()
-            XCTAssertEqual(store.panelTopLeft?.x ?? 0, dropOrigin.x, accuracy: 1)
-            XCTAssertEqual(store.panelTopLeft?.y ?? 0, dropTop, accuracy: 1)
+            XCTAssertEqual(store.panelTopLeft?.x ?? 0, dropOrigin.x + PopupWindow.shadowInset, accuracy: 1)
+            XCTAssertEqual(store.panelTopLeft?.y ?? 0, dropTop - PopupWindow.shadowInset, accuracy: 1)
 
             // The window manager repositions/resizes the panel before the
             // debounced settle (150ms) fires.
@@ -586,8 +592,8 @@ final class YagrakerUITests: XCTestCase {
             XCTAssertEqual(panel.frame.width, 700, accuracy: 1)
             XCTAssertEqual(panel.frame.height, 500, accuracy: 1)
             // …and the external position must not overwrite the saved one.
-            XCTAssertEqual(store.panelTopLeft?.x ?? 0, dropOrigin.x, accuracy: 1)
-            XCTAssertEqual(store.panelTopLeft?.y ?? 0, dropTop, accuracy: 1)
+            XCTAssertEqual(store.panelTopLeft?.x ?? 0, dropOrigin.x + PopupWindow.shadowInset, accuracy: 1)
+            XCTAssertEqual(store.panelTopLeft?.y ?? 0, dropTop - PopupWindow.shadowInset, accuracy: 1)
         }
     }
 
@@ -609,12 +615,13 @@ final class YagrakerUITests: XCTestCase {
             waitForViewUpdate()
 
             let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
+            let contentFrame = PopupWindow.contentRect(forWindowRect: panel.frame)
             // Panel should appear below the selection
-            XCTAssertLessThanOrEqual(panel.frame.maxY, anchorRect.minY - PopupWindow.anchorGap + 1)
+            XCTAssertLessThanOrEqual(contentFrame.maxY, anchorRect.minY - PopupWindow.anchorGap + 1)
             // Left edge should align with anchor rect
-            XCTAssertEqual(panel.frame.minX, anchorRect.minX, accuracy: 1)
+            XCTAssertEqual(contentFrame.minX, anchorRect.minX, accuracy: 1)
             // Must stay within visible screen bounds
-            XCTAssertGreaterThanOrEqual(panel.frame.minY, visible.minY)
+            XCTAssertGreaterThanOrEqual(contentFrame.minY, visible.minY)
         }
     }
 
@@ -637,12 +644,13 @@ final class YagrakerUITests: XCTestCase {
             waitForViewUpdate()
 
             let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
+            let contentFrame = PopupWindow.contentRect(forWindowRect: panel.frame)
             // When below lacks room, the panel flips above the selection
-            XCTAssertGreaterThanOrEqual(panel.frame.minY, anchorRect.maxY + PopupWindow.anchorGap - 1)
+            XCTAssertGreaterThanOrEqual(contentFrame.minY, anchorRect.maxY + PopupWindow.anchorGap - 1)
             // Left edge should align with anchor rect
-            XCTAssertEqual(panel.frame.minX, anchorRect.minX, accuracy: 1)
+            XCTAssertEqual(contentFrame.minX, anchorRect.minX, accuracy: 1)
             // Must stay within visible screen bounds
-            XCTAssertLessThanOrEqual(panel.frame.maxY, visible.maxY)
+            XCTAssertLessThanOrEqual(contentFrame.maxY, visible.maxY)
         }
     }
 
@@ -665,9 +673,10 @@ final class YagrakerUITests: XCTestCase {
             waitForViewUpdate()
 
             let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
+            let contentFrame = PopupWindow.contentRect(forWindowRect: panel.frame)
             // Panel must not spill over the right screen margin
-            XCTAssertLessThanOrEqual(panel.frame.maxX, visible.maxX - PopupWindow.screenMargin + 1)
-            XCTAssertGreaterThanOrEqual(panel.frame.minX, visible.minX)
+            XCTAssertLessThanOrEqual(contentFrame.maxX, visible.maxX - PopupWindow.screenMargin + 1)
+            XCTAssertGreaterThanOrEqual(contentFrame.minX, visible.minX)
         }
     }
 
@@ -697,9 +706,10 @@ final class YagrakerUITests: XCTestCase {
             waitForViewUpdate()
 
             let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
+            let contentFrame = PopupWindow.contentRect(forWindowRect: panel.frame)
             // Panel should anchor near anchorRect, not at savedTopLeft
-            XCTAssertNotEqual(panel.frame.minX, savedTopLeft.x, accuracy: 10)
-            XCTAssertEqual(panel.frame.minX, anchorRect.minX, accuracy: 1)
+            XCTAssertNotEqual(contentFrame.minX, savedTopLeft.x, accuracy: 10)
+            XCTAssertEqual(contentFrame.minX, anchorRect.minX, accuracy: 1)
         }
     }
 
@@ -841,7 +851,7 @@ final class YagrakerUITests: XCTestCase {
             defer { appState.dismissPopup(restoreFocus: false) }
             waitForViewUpdate()
             let panel = try XCTUnwrap(NSApp.windows.first { $0 is PopupPanel && $0.isVisible })
-            let hostingView = try XCTUnwrap(panel.contentView as? NSHostingView<AnyView>)
+            let hostingView = appState.popupWindow.hostingView
             XCTAssertTrue(hostingView.mouseDownCanMoveWindow)
         }
     }
@@ -1088,10 +1098,13 @@ final class YagrakerUITests: XCTestCase {
             guard let panel = NSApp.windows.first(where: { $0 is PopupPanel && $0.isVisible }) else {
                 return XCTFail("PopupPanel not found")
             }
+            // resizeManually works in content space; the window additionally
+            // carries the transparent shadow padding on every side.
             let initialFrame = panel.frame
+            let initialContent = PopupWindow.contentSize(forWindowSize: initialFrame.size)
             appState.popupWindow.beginManualResize()
             appState.popupWindow.resizeManually(
-                to: NSSize(width: initialFrame.width + 80, height: initialFrame.height + 80)
+                to: NSSize(width: initialContent.width + 80, height: initialContent.height + 80)
             )
             appState.popupWindow.endManualResize()
             appState.popupWindow.resizePanel(animated: false)
@@ -1100,8 +1113,9 @@ final class YagrakerUITests: XCTestCase {
             XCTAssertEqual(panel.frame.height, initialFrame.height + 80, accuracy: 1)
             XCTAssertEqual(panel.frame.minX, initialFrame.minX, accuracy: 1)
             XCTAssertEqual(panel.frame.maxY, initialFrame.maxY, accuracy: 1)
-            XCTAssertEqual(SettingsStore.shared.panelSize?.width ?? 0, panel.frame.width, accuracy: 1)
-            XCTAssertEqual(SettingsStore.shared.panelSize?.height ?? 0, panel.frame.height, accuracy: 1)
+            let stored = PopupWindow.contentSize(forWindowSize: panel.frame.size)
+            XCTAssertEqual(SettingsStore.shared.panelSize?.width ?? 0, stored.width, accuracy: 1)
+            XCTAssertEqual(SettingsStore.shared.panelSize?.height ?? 0, stored.height, accuracy: 1)
         }
     }
 
@@ -1133,8 +1147,8 @@ final class YagrakerUITests: XCTestCase {
                 return XCTFail("Second PopupPanel not found")
             }
 
-            XCTAssertEqual(secondPanel.frame.width, targetSize.width, accuracy: 1)
-            XCTAssertEqual(secondPanel.frame.height, targetSize.height, accuracy: 1)
+            XCTAssertEqual(secondPanel.frame.width, targetSize.width + PopupWindow.shadowInset * 2, accuracy: 1)
+            XCTAssertEqual(secondPanel.frame.height, targetSize.height + PopupWindow.shadowInset * 2, accuracy: 1)
         }
     }
 

@@ -82,4 +82,32 @@ extension PopupWindow {
             && abs(a.width - b.width) <= tolerance
             && abs(a.height - b.height) <= tolerance
     }
+
+    // MARK: Shadow padding conversion
+    //
+    // The window is larger than the visible panel by `shadowInset` on every
+    // side; the transparent padding hosts the SwiftUI-drawn shadow. All
+    // sizing/positioning math works in *content* space (the visible panel),
+    // converting to window space only at the `setFrame` boundary.
+
+    nonisolated static func windowRect(forContentRect rect: NSRect) -> NSRect {
+        rect.insetBy(dx: -shadowInset, dy: -shadowInset)
+    }
+
+    nonisolated static func contentRect(forWindowRect rect: NSRect) -> NSRect {
+        rect.insetBy(dx: shadowInset, dy: shadowInset)
+    }
+
+    nonisolated static func windowSize(forContentSize size: NSSize) -> NSSize {
+        NSSize(width: size.width + shadowInset * 2, height: size.height + shadowInset * 2)
+    }
+
+    nonisolated static func contentSize(forWindowSize size: NSSize) -> NSSize {
+        NSSize(width: size.width - shadowInset * 2, height: size.height - shadowInset * 2)
+    }
+
+    /// Frame of the visible panel (window frame minus the shadow padding).
+    var contentFrame: NSRect {
+        Self.contentRect(forWindowRect: panel.frame)
+    }
 }

@@ -13,6 +13,11 @@ final class PopupPanel: NSPanel {
     }
 }
 
+/// Flipped container that insets the hosting view by the shadow padding.
+final class FlippedHostingContainer: NSView {
+    override var isFlipped: Bool { true }
+}
+
 final class PopupHostingView<Content: View>: NSHostingView<Content> {
     override var mouseDownCanMoveWindow: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }

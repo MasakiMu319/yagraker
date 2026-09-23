@@ -26,9 +26,8 @@ extension PopupWindow {
             x: visible.midX - size.width / 2,
             y: visible.maxY - visible.height / 3 - size.height
         )
-        panel.setFrame(NSRect(origin: origin, size: size), display: true)
+        panel.setFrame(Self.windowRect(forContentRect: NSRect(origin: origin, size: size)), display: true)
     }
-
     private func positionPanel(near anchorRect: NSRect, size: NSSize) {
         let screens = NSScreen.screens
         let anchorCenter = NSPoint(x: anchorRect.midX, y: anchorRect.midY)
@@ -47,15 +46,20 @@ extension PopupWindow {
             anchorGap: Self.anchorGap
         )
         isAnchoredAbove = placement.isAnchoredAbove
-        panel.setFrame(NSRect(origin: placement.origin, size: size), display: true)
+        panel.setFrame(
+            Self.windowRect(forContentRect: NSRect(origin: placement.origin, size: size)),
+            display: true
+        )
     }
 
+    /// `size` and `topLeft` are in content space (the visible panel).
     func setFrameKeepingTopLeft(_ size: NSSize, topLeft: NSPoint) {
-        panel.setFrame(NSRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height), display: true)
+        let contentRect = NSRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height)
+        panel.setFrame(Self.windowRect(forContentRect: contentRect), display: true)
     }
 
     func persistPosition() {
-        let frame = panel.frame
+        let frame = contentFrame
         SettingsStore.shared.panelTopLeft = CGPoint(x: frame.minX, y: frame.maxY)
     }
 }
